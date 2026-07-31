@@ -1,6 +1,7 @@
 package com.promptnotepad.app
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,8 @@ import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexUtils
 import kotlinx.coroutines.launch
 import java.io.File
+
+private const val TAG_UI = "PN_UI"
 
 class MainActivity : ComponentActivity() {
 
@@ -138,6 +141,7 @@ private fun PromptNotepadApp(notesDir: File) {
         coroutineScope.launch {
             val result = FileUtils.writeFile(tab.file, content)
             if (result.isFailure) {
+                Log.e(TAG_UI, "saveActiveTab gagal untuk ${tab.file.name}")
                 snackbarHostState.showSnackbar(errorMessage)
             }
         }
@@ -164,8 +168,10 @@ private fun PromptNotepadApp(notesDir: File) {
                         coroutineScope.launch {
                             val result = FileUtils.createNewFile(notesDir, "Catatan")
                             result.onSuccess { newFile ->
+                                Log.d(TAG_UI, "File baru dibuat: ${newFile.name}")
                                 tabManager.openFileInTab(newFile)
                             }.onFailure {
+                                Log.e(TAG_UI, "Gagal membuat file baru")
                                 snackbarHostState.showSnackbar(errorMessage)
                             }
                         }

@@ -1,9 +1,12 @@
 package com.promptnotepad.app.state
 
+import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import com.promptnotepad.app.model.TabItem
 import java.io.File
+
+private const val TAG_STATE = "PN_STATE"
 
 class TabManager {
     val openTabs = mutableStateListOf<TabItem>()
@@ -17,16 +20,19 @@ class TabManager {
             openTabs.add(TabItem(file = file))
             activeTabIndex.value = openTabs.lastIndex
         }
+        Log.d(TAG_STATE, "openFileInTab: ${file.name}, activeIndex=${activeTabIndex.value}, totalTab=${openTabs.size}")
     }
 
     fun closeTab(index: Int) {
         if (openTabs.isEmpty() || index !in openTabs.indices) return
+        val closedName = openTabs[index].title
         openTabs.removeAt(index)
         if (activeTabIndex.value >= openTabs.size) {
             activeTabIndex.value = (openTabs.size - 1).coerceAtLeast(0)
         } else if (activeTabIndex.value > index) {
             activeTabIndex.value = activeTabIndex.value - 1
         }
+        Log.d(TAG_STATE, "closeTab: $closedName, sisaTab=${openTabs.size}")
     }
 
     fun activeTab(): TabItem? {
@@ -43,5 +49,6 @@ class TabManager {
         openTabs.clear()
         files.forEach { openTabs.add(TabItem(file = it)) }
         activeTabIndex.value = activeIndex.coerceIn(0, openTabs.lastIndex)
+        Log.d(TAG_STATE, "restoreTabs: ${files.size} tab dipulihkan, activeIndex=${activeTabIndex.value}")
     }
 }
