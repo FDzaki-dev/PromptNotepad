@@ -14,18 +14,25 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
@@ -43,6 +50,7 @@ import com.promptnotepad.app.ui.theme.PureBlack
 import com.promptnotepad.app.ui.theme.TextPrimary
 import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexUtils
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -61,23 +69,61 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Menyimpan daftar tab (path absolut file) + index tab aktif ke dalam Bundle
+ * saved-instance-state, sehingga jika proses aplikasi di-kill oleh OS (bukan
+ * hanya rotasi layar), tab yang sedang dibuka pengguna bisa dipulihkan.
+ */
+private fun tabManagerSaver(): Saver<TabManager, List<String>> = Saver(
+    save = { manager ->
+        manager.openTabs.map { it.file.absolutePath } + manager.activeTabIndex.value.toString()
+    },
+    restore = { saved ->
+        val manager = TabManager()
+        if (saved.isNotEmpty()) {
+            val activeIndex = saved.last().toIntOrNull() ?: 0
+            val files = saved.dropLast(1).map { File(it) }.filter { it.exists() }
+            manager.restoreTabs(files, activeIndex)
+        }
+        manager
+    }
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PromptNotepadApp(notesDir: File) {
-    val tabManager = remember { TabManager() }
+    val tabManager = rememberSaveable(saver = tabManagerSaver()) { TabManager() }
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val errorMessage = "Gagal menyimpan/membaca berkas. Perubahan terakhir mungkin belum tersimpan."
 
-    // QuickNote: tab coretan instan yang otomatis terbuka saat aplikasi dijalankan.
-    remember {
-        val quickNoteFile = File(notesDir, "QuickNote.txt")
-        if (!quickNoteFile.exists()) quickNoteFile.createNewFile()
-        tabManager.openFileInTab(quickNoteFile)
-        true
+    // QuickNote: tab coretan instan yang otomatis terbuka saat aplikasi dijalankan
+    // (hanya jika belum ada tab yang dipulihkan dari saved-instance-state).
+    LaunchedEffect(Unit) {
+        if (tabManager.openTabs.isEmpty()) {
+            val quickNoteFile = File(notesDir, "QuickNote.txt")
+            if (!quickNoteFile.exists()) {
+                val created = FileUtils.writeFile(quickNoteFile, "")
+                if (created.isFailure) {
+                    snackbarHostState.showSnackbar(errorMessage)
+                }
+            }
+            tabManager.openFileInTab(quickNoteFile)
+        }
     }
 
-    var fieldValue by remember(tabManager.activeTabIndex.value) {
+    var fieldValue by remember(tabManager.activeTabIndex.value) { mutableStateOf(TextFieldValue("")) }
+
+    // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
+    LaunchedEffect(tabManager.activeTabIndex.value, tabManager.openTabs.size) {
         val tab = tabManager.activeTab()
-        mutableStateOf(
-            TextFieldValue(if (tab != null) FileUtils.readFile(tab.file) else "")
-        )
+        if (tab != null) {
+            val result = FileUtils.readFile(tab.file)
+            fieldValue = TextFieldValue(result.getOrDefault(""))
+            if (result.isFailure) {
+                snackbarHostState.showSnackbar(errorMessage)
+            }
+        }
     }
 
     var showFileList by remember { mutableStateOf(false) }
@@ -86,6 +132,16 @@ private fun PromptNotepadApp(notesDir: File) {
 
     val activeTab = tabManager.activeTab()
     val isMarkdownFile = activeTab?.file?.extension == "md"
+
+    fun saveActiveTab(content: String) {
+        val tab = activeTab ?: return
+        coroutineScope.launch {
+            val result = FileUtils.writeFile(tab.file, content)
+            if (result.isFailure) {
+                snackbarHostState.showSnackbar(errorMessage)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -105,14 +161,21 @@ private fun PromptNotepadApp(notesDir: File) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = "Buka File", tint = PremiumAccent)
                     }
                     IconButton(onClick = {
-                        val newFile = FileUtils.createNewFile(notesDir, "Catatan")
-                        tabManager.openFileInTab(newFile)
+                        coroutineScope.launch {
+                            val result = FileUtils.createNewFile(notesDir, "Catatan")
+                            result.onSuccess { newFile ->
+                                tabManager.openFileInTab(newFile)
+                            }.onFailure {
+                                snackbarHostState.showSnackbar(errorMessage)
+                            }
+                        }
                     }) {
                         Icon(Icons.Filled.Add, contentDescription = "File Baru", tint = PremiumAccent)
                     }
                 }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = PureBlack
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
@@ -122,7 +185,7 @@ private fun PromptNotepadApp(notesDir: File) {
                     if (!previewMode) {
                         ShortcutBar(onInsertText = { insertText ->
                             fieldValue = insertAtCursor(fieldValue, insertText)
-                            activeTab?.let { FileUtils.writeFile(it.file, fieldValue.text) }
+                            saveActiveTab(fieldValue.text)
                         })
                     }
                 }
@@ -133,9 +196,7 @@ private fun PromptNotepadApp(notesDir: File) {
                     TextEditor(
                         value = fieldValue,
                         onValueChange = { fieldValue = it },
-                        onContentChange = { newContent ->
-                            activeTab?.let { FileUtils.writeFile(it.file, newContent) }
-                        }
+                        onContentChange = { newContent -> saveActiveTab(newContent) }
                     )
                 }
             }
@@ -157,9 +218,11 @@ private fun PromptNotepadApp(notesDir: File) {
         RegexReplaceDialog(
             onDismiss = { showRegexDialog = false },
             onApply = { pattern, replacement ->
-                val newText = RegexUtils.findAndReplace(fieldValue.text, pattern, replacement)
-                fieldValue = TextFieldValue(newText)
-                activeTab?.let { FileUtils.writeFile(it.file, newText) }
+                coroutineScope.launch {
+                    val newText = RegexUtils.findAndReplaceAsync(fieldValue.text, pattern, replacement)
+                    fieldValue = TextFieldValue(newText)
+                    saveActiveTab(newText)
+                }
                 showRegexDialog = false
             }
         )
@@ -172,7 +235,10 @@ private fun FileListDialog(
     onDismiss: () -> Unit,
     onFileSelected: (File) -> Unit
 ) {
-    val files = remember { FileUtils.listTextFiles(notesDir) }
+    var files by remember { mutableStateOf<List<File>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        files = FileUtils.listTextFiles(notesDir).getOrDefault(emptyList())
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } },

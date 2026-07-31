@@ -1,6 +1,22 @@
 package com.promptnotepad.app.util
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 object RegexUtils {
+
+    /**
+     * Versi asinkron dari [findAndReplace], dijalankan di Dispatchers.Default
+     * agar regex pada teks besar tidak membekukan UI thread.
+     */
+    suspend fun findAndReplaceAsync(
+        content: String,
+        pattern: String,
+        replacement: String,
+        ignoreCase: Boolean = false
+    ): String = withContext(Dispatchers.Default) {
+        findAndReplace(content, pattern, replacement, ignoreCase)
+    }
 
     /**
      * Mencari dan mengganti teks berdasarkan pola regex.

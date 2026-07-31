@@ -32,4 +32,16 @@ class TabManager {
     fun activeTab(): TabItem? {
         return openTabs.getOrNull(activeTabIndex.value)
     }
+
+    /**
+     * Memulihkan daftar tab yang sebelumnya terbuka (dipanggil saat aplikasi
+     * dipulihkan setelah process death oleh OS), agar draf/tab yang sedang
+     * dikerjakan pengguna tidak hilang begitu saja.
+     */
+    fun restoreTabs(files: List<File>, activeIndex: Int) {
+        if (files.isEmpty()) return
+        openTabs.clear()
+        files.forEach { openTabs.add(TabItem(file = it)) }
+        activeTabIndex.value = activeIndex.coerceIn(0, openTabs.lastIndex)
+    }
 }
