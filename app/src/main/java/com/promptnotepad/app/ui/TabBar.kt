@@ -23,7 +23,7 @@ import com.promptnotepad.app.ui.theme.TextPrimary
 import com.promptnotepad.app.ui.theme.TextSecondary
 
 @Composable
-fun TabBar(tabManager: TabManager) {
+fun TabBar(tabManager: TabManager, onCloseTab: (Int) -> Unit = { tabManager.closeTab(it) }) {
     if (tabManager.openTabs.isEmpty()) return
 
     ScrollableTabRow(
@@ -47,7 +47,7 @@ fun TabBar(tabManager: TabManager) {
                         )
                         Spacer(Modifier.width(6.dp))
                         IconButton(
-                            onClick = { tabManager.closeTab(index) },
+                            onClick = { onCloseTab(index) },
                             modifier = Modifier.width(20.dp)
                         ) {
                             Icon(

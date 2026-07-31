@@ -1,5 +1,6 @@
 package com.promptnotepad.app
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FindReplace
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
@@ -20,8 +22,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,8 +40,10 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.promptnotepad.app.state.TabManager
 import com.promptnotepad.app.ui.MarkdownViewer
 import com.promptnotepad.app.ui.PremiumLayout
@@ -49,12 +55,15 @@ import com.promptnotepad.app.ui.theme.PremiumAccent
 import com.promptnotepad.app.ui.theme.PromptNotepadTheme
 import com.promptnotepad.app.ui.theme.PureBlack
 import com.promptnotepad.app.ui.theme.TextPrimary
+import com.promptnotepad.app.ui.theme.TextSecondary
 import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexUtils
 import kotlinx.coroutines.launch
 import java.io.File
 
 private const val TAG_UI = "PN_UI"
+private const val PREFS_NAME = "prompt_notepad_prefs"
+private const val KEY_ONBOARDING_SHOWN = "onboarding_shown"
 
 class MainActivity : ComponentActivity() {
 
@@ -95,10 +104,13 @@ private fun tabManagerSaver(): Saver<TabManager, List<String>> = Saver(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PromptNotepadApp(notesDir: File) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     val tabManager = rememberSaveable(saver = tabManagerSaver()) { TabManager() }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val errorMessage = "Gagal menyimpan/membaca berkas. Perubahan terakhir mungkin belum tersimpan."
+    var showOnboarding by remember { mutableStateOf(!prefs.getBoolean(KEY_ONBOARDING_SHOWN, false)) }
 
     // QuickNote: tab coretan instan yang otomatis terbuka saat aplikasi dijalankan
     // (hanya jika belum ada tab yang dipulihkan dari saved-instance-state).
@@ -147,6 +159,26 @@ private fun PromptNotepadApp(notesDir: File) {
         }
     }
 
+    // Menutup tab tidak menghapus berkas di penyimpanan (hanya menutup tampilannya),
+    // tapi tetap menyediakan tombol "Buka lagi" agar pengguna awam tidak khawatir
+    // salah pencet dan merasa kehilangan catatannya.
+    fun closeTabWithUndo(index: Int) {
+        val closedFile = tabManager.openTabs.getOrNull(index)?.file
+        tabManager.closeTab(index)
+        if (closedFile != null) {
+            coroutineScope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = "Tab \"${closedFile.name}\" ditutup",
+                    actionLabel = "Buka lagi",
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    tabManager.openFileInTab(closedFile)
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -159,7 +191,7 @@ private fun PromptNotepadApp(notesDir: File) {
                         }
                     }
                     IconButton(onClick = { showRegexDialog = true }) {
-                        Text(".*", color = PremiumAccent, modifier = Modifier.padding(horizontal = 8.dp))
+                        Icon(Icons.Filled.FindReplace, contentDescription = "Cari & Ganti", tint = PremiumAccent)
                     }
                     IconButton(onClick = { showFileList = true }) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = "Buka File", tint = PremiumAccent)
@@ -187,6 +219,7 @@ private fun PromptNotepadApp(notesDir: File) {
         Column(modifier = Modifier.padding(padding)) {
             PremiumLayout(
                 tabManager = tabManager,
+                onCloseTab = { index -> closeTabWithUndo(index) },
                 shortcutBar = {
                     if (!previewMode) {
                         ShortcutBar(onInsertText = { insertText ->
@@ -230,6 +263,15 @@ private fun PromptNotepadApp(notesDir: File) {
                     saveActiveTab(newText)
                 }
                 showRegexDialog = false
+            }
+        )
+    }
+
+    if (showOnboarding) {
+        OnboardingDialog(
+            onDismiss = {
+                showOnboarding = false
+                prefs.edit().putBoolean(KEY_ONBOARDING_SHOWN, true).apply()
             }
         )
     }
@@ -277,13 +319,21 @@ private fun RegexReplaceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cari & Ganti (Regex)") },
+        title = { Text("Cari & Ganti") },
         text = {
             Column {
+                Text(
+                    text = "Ganti semua kemunculan sebuah kata dengan kata lain di catatan ini. " +
+                        "Contoh: isi \"kucing\" di kolom pertama, \"anjing\" di kolom kedua, " +
+                        "maka semua kata \"kucing\" akan berubah jadi \"anjing\".",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
                 OutlinedTextField(
                     value = pattern,
                     onValueChange = { pattern = it },
-                    label = { Text("Pola Regex") }
+                    label = { Text("Cari") }
                 )
                 OutlinedTextField(
                     value = replacement,
@@ -299,4 +349,41 @@ private fun RegexReplaceDialog(
             TextButton(onClick = onDismiss) { Text("Batal") }
         }
     )
+}
+
+/**
+ * Dialog perkenalan singkat yang hanya muncul sekali di percobaan pertama
+ * (status disimpan di SharedPreferences), menjelaskan 3 aksi utama dengan
+ * bahasa sederhana untuk pengguna awam.
+ */
+@Composable
+private fun OnboardingDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Selamat datang di PromptNotepad") },
+        text = {
+            Column {
+                Text(
+                    "Aplikasi catatan sederhana yang tersimpan langsung di HP kamu, tanpa internet.",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                OnboardingRow(icon = Icons.Filled.Add, text = "Buat catatan baru")
+                OnboardingRow(icon = Icons.Filled.FolderOpen, text = "Buka catatan yang sudah tersimpan")
+                OnboardingRow(icon = Icons.Filled.FindReplace, text = "Cari & ganti kata dalam catatan")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Mengerti") }
+        }
+    )
+}
+
+@Composable
+private fun OnboardingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(modifier = Modifier.padding(vertical = 6.dp)) {
+        Icon(icon, contentDescription = null, tint = PremiumAccent)
+        Text(text, color = TextPrimary, modifier = Modifier.padding(start = 12.dp))
+    }
 }
