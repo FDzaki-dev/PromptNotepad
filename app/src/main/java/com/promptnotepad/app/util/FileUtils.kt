@@ -1,9 +1,10 @@
 package com.promptnotepad.app.util
 
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.nio.charset.Charset
 
 /**
  * Semua operasi berkas berjalan di luar UI thread (Dispatchers.IO) dan dibungkus
@@ -11,28 +12,33 @@ import java.io.File
  * atau force-close. Penulisan memakai dispatcher IO dengan paralelisme 1 agar
  * urutan auto-save per keystroke tetap terjamin (tidak ada race condition
  * antar-write yang bisa membuat versi lama menimpa versi baru).
- *
- * Semua kegagalan dicatat dengan tag Logcat [TAG_IO] agar saat troubleshooting
- * cukup filter "PN_IO" untuk langsung tahu error terjadi di layer I/O.
  */
 object FileUtils {
 
-    private const val TAG_IO = "PN_IO"
     private val writeDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val charset = Charset.forName("UTF-8")
 
     suspend fun readFile(file: File): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            if (file.exists()) file.readText() else ""
-        }.onFailure { Log.e(TAG_IO, "readFile gagal: ${file.name}", it) }
+            if (file.exists()) normalizeNewlines(file.readText(charset)) else ""
+        }
     }
 
     suspend fun writeFile(file: File, content: String): Result<Unit> = withContext(writeDispatcher) {
         runCatching {
+            if (file.exists() && !file.canWrite()) {
+                throw IOException("Berkas bersifat read-only atau sedang dikunci sistem.")
+            }
             file.parentFile?.let { parent ->
                 if (!parent.exists()) parent.mkdirs()
             }
-            file.writeText(content)
-        }.onFailure { Log.e(TAG_IO, "writeFile gagal: ${file.name}", it) }
+            file.writeText(content, charset)
+        }
+    }
+
+    /** Menyeragamkan akhir baris (CRLF/CR -> LF) agar tampilan & regex konsisten lintas sumber file. */
+    private fun normalizeNewlines(text: String): String {
+        return text.replace("\r\n", "\n").replace("\r", "\n")
     }
 
     suspend fun listTextFiles(dir: File): Result<List<File>> = withContext(Dispatchers.IO) {
@@ -44,7 +50,7 @@ object FileUtils {
                     f.isFile && (f.extension == "txt" || f.extension == "md")
                 }?.sortedByDescending { it.lastModified() } ?: emptyList()
             }
-        }.onFailure { Log.e(TAG_IO, "listTextFiles gagal: ${dir.path}", it) }
+        }
     }
 
     suspend fun createNewFile(dir: File, baseName: String, extension: String = "txt"): Result<File> =
@@ -59,6 +65,6 @@ object FileUtils {
                 }
                 candidate.createNewFile()
                 candidate
-            }.onFailure { Log.e(TAG_IO, "createNewFile gagal: $baseName", it) }
+            }
         }
 }

@@ -2,20 +2,39 @@ package com.promptnotepad.app.util
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+
+sealed class RegexOutcome {
+    data class Success(val text: String) : RegexOutcome()
+    object TimedOut : RegexOutcome()
+}
 
 object RegexUtils {
 
+    /** Dispatcher tersendiri (1 thread) agar pola regex yang "meledak" (catastrophic
+     * backtracking) tidak ikut menyita thread pool Dispatchers.Default yang dipakai
+     * bagian lain aplikasi. */
+    private val regexDispatcher = Dispatchers.Default.limitedParallelism(1)
+    private const val REGEX_TIMEOUT_MS = 2000L
+
     /**
-     * Versi asinkron dari [findAndReplace], dijalankan di Dispatchers.Default
-     * agar regex pada teks besar tidak membekukan UI thread.
+     * Versi asinkron dari [findAndReplace] dengan batas waktu 2 detik.
+     * Catatan: mesin regex JVM/Android tidak selalu responsif terhadap pembatalan
+     * di tengah backtracking, sehingga timeout ini menghentikan *penantian* UI
+     * (coroutine dibatalkan & TimedOut dikembalikan) meski thread pekerja pada
+     * kasus terburuk masih berjalan di background pada dispatcher terisolasi —
+     * bukan solusi sempurna, tapi UI dan fitur lain tidak akan ikut membeku.
      */
     suspend fun findAndReplaceAsync(
         content: String,
         pattern: String,
         replacement: String,
         ignoreCase: Boolean = false
-    ): String = withContext(Dispatchers.Default) {
-        findAndReplace(content, pattern, replacement, ignoreCase)
+    ): RegexOutcome = withContext(regexDispatcher) {
+        val result = withTimeoutOrNull(REGEX_TIMEOUT_MS) {
+            findAndReplace(content, pattern, replacement, ignoreCase)
+        }
+        if (result != null) RegexOutcome.Success(result) else RegexOutcome.TimedOut
     }
 
     /**

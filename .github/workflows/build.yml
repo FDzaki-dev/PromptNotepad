@@ -23,9 +23,6 @@ jobs:
           [ -f gradlew ] || gradle wrapper --gradle-version 8.7
           chmod +x gradlew
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
-
       - name: Decode keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

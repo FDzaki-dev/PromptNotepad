@@ -23,8 +23,8 @@ import com.promptnotepad.app.ui.theme.PureBlack
 @Composable
 fun PremiumLayout(
     tabManager: TabManager,
+    onCloseTab: (Int) -> Unit = { index -> tabManager.closeTab(index) },
     shortcutBar: @Composable () -> Unit = {},
-    onCloseTab: (Int) -> Unit = { tabManager.closeTab(it) },
     editorContent: @Composable () -> Unit
 ) {
     Column(

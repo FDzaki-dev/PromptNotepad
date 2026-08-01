@@ -1,11 +1,9 @@
 package com.promptnotepad.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.promptnotepad.app.ui.theme.PremiumEditorStyle
 import com.promptnotepad.app.ui.theme.PureBlack
-import com.promptnotepad.app.ui.theme.TextSecondary
 
 /**
  * Editor teks utama. Auto-save dipanggil di setiap perubahan karakter (onValueChange)
@@ -44,39 +41,26 @@ fun TextEditor(
         debouncedText = value.text
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        BasicTextField(
-            value = value,
-            onValueChange = { newValue ->
-                onValueChange(newValue)
-                if (newValue.text != value.text) {
-                    onContentChange(newValue.text)
-                }
-            },
-            textStyle = PremiumEditorStyle,
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(PremiumEditorStyle.color),
-            visualTransformation = if (enableTodoHighlight) {
-                TodoVisualTransformation(debouncedText)
-            } else {
-                VisualTransformation.None
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .background(PureBlack)
-                .padding(16.dp)
-        )
-
-        // Placeholder ramah-awam: hanya tampil saat catatan benar-benar kosong,
-        // agar layar hitam polos tidak terkesan seperti aplikasi rusak/kosong.
-        if (value.text.isEmpty()) {
-            Text(
-                text = "Mulai menulis di sini...",
-                style = PremiumEditorStyle,
-                color = TextSecondary,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-    }
+    BasicTextField(
+        value = value,
+        onValueChange = { newValue ->
+            onValueChange(newValue)
+            if (newValue.text != value.text) {
+                onContentChange(newValue.text)
+            }
+        },
+        textStyle = PremiumEditorStyle,
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(PremiumEditorStyle.color),
+        visualTransformation = if (enableTodoHighlight) {
+            TodoVisualTransformation(debouncedText)
+        } else {
+            VisualTransformation.None
+        },
+        modifier = modifier
+            .fillMaxSize()
+            .background(PureBlack)
+            .padding(16.dp)
+    )
 }
 
 /**
