@@ -4,9 +4,9 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 3` / `versionName "1.1.0"`
-- **Batch terakhir selesai:** Batch 1 dari daftar evaluasi lanjutan (14 item, 5 kategori)
-- **Batch berikutnya (menunggu keputusan user):** Batch 2 (auto-save timer, optimasi recomposition, buffer file besar)
+- **Versi:** `versionCode 4` / `versionName "1.2.0"`
+- **Batch terakhir selesai:** Batch 2 (selesai penuh) — Large File Buffer, Optimasi Recomposition, dan keputusan untuk TIDAK mengganti auto-save instan ke timer
+- **Batch berikutnya (menunggu keputusan user):** Batch 3 (SAF/Uri, ViewModel — wajib tanya dulu)
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -25,6 +25,7 @@
    - Batas 12 tab + eviction FIFO otomatis (konten aman krn sudah auto-save)
 5. **[Dokumentasi wajib — file ini]** `PROJECT_STATE.md` dan `FILE_MANIFEST.txt` ternyata belum pernah dibuat sejak awal proyek (luput dari batch-batch sebelumnya). Dibuat sekarang, retroaktif mencakup riwayat di atas.
 6. **[README.md luput diupdate]** `README.md` masih berisi daftar fitur v1.0.0 meski sudah 2 rilis berjalan (v1.0.1, v1.1.0) — tidak pernah disinkronkan. Diperbaiki: sekarang mencantumkan seluruh fitur per kategori rilis + link ke `CHANGELOG.md`/`PROJECT_STATE.md`. **Pengingat untuk sesi berikutnya: README.md WAJIB ikut diperbarui di setiap rilis, bukan hanya `CHANGELOG.md`/`FILE_MANIFEST.txt`.**
+7. **[Batch 2 — v1.2.0]** Large File Handling Buffer (batas 2MB di `FileUtils.readFile`, pesan error spesifik ditampilkan lewat Snackbar) + Optimasi Recomposition (state `fieldValue` diisolasi ke composable `EditorSection` baru, terpisah dari `TopAppBar`/`Scaffold`, agar kursor/ketikan tidak memicu recompose seluruh tree). ⚠️ **Self-caught bug saat refactor:** sempat salah membuat parameter `regexRequest` bertipe `Any?` di-cast ke interface `RegexRequestPayload` yang tidak pernah diimplementasikan `RegexRequest` — akan membuat fitur regex diam-diam tidak pernah berjalan. Ditemukan & diperbaiki sebelum ZIP dikirim (tidak sempat terkirim ke user). **Item ketiga (auto-save timer-debounce) — KEPUTUSAN FINAL: TIDAK dikerjakan.** User menyerahkan keputusan ke AI; analisis: timer 3 detik membuka jendela risiko data loss hingga 3 detik, sementara auto-save instan yang sudah ada (v1.0.0, sudah async sejak v1.0.1) justru lebih aman dan tidak membekukan UI — mengganti ke timer berarti mundur dari prioritas #1 (cegah data loss) yang sudah ditetapkan user sendiri di evaluasi sebelumnya. Batch 2 dinyatakan **selesai penuh** dengan keputusan ini.
 
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
@@ -44,6 +45,8 @@ app/src/main/java/com/promptnotepad/app/
 ```
 
 ## Belum Dikerjakan (menunggu instruksi)
-- Batch 2: auto-save timer-debounce (⚠️ berpotensi kontradiksi dgn auto-save instan yang sudah ada — perlu konfirmasi), `derivedStateOf` untuk recomposition, buffer file besar
 - Batch 3: migrasi SAF/`Uri`, `Persistable URI Permission`, `SavedStateHandle`/ViewModel formal — **wajib tanya dulu** fitur/behavior apa yang harus tetap sama persis
 - Batch 4: Undo/Redo stack, Hardware keyboard shortcuts (`onKeyEvent`)
+
+## Keputusan Ditolak (dengan alasan, jangan diusulkan ulang tanpa alasan baru)
+- **Auto-save timer-debounce (3 detik):** ditolak. Auto-save instan async yang sudah ada lebih aman (jendela data-loss lebih kecil) dan tidak membekukan UI — timer hanya akan mengurangi frekuensi tulis dengan trade-off resiko kehilangan data lebih besar.

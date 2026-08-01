@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.promptnotepad.app.model.TabItem
 import com.promptnotepad.app.state.TabManager
 import com.promptnotepad.app.ui.MarkdownViewer
 import com.promptnotepad.app.ui.PremiumLayout
@@ -51,6 +52,7 @@ import com.promptnotepad.app.ui.theme.TextPrimary
 import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -90,6 +92,10 @@ private fun tabManagerSaver(): Saver<TabManager, List<String>> = Saver(
     }
 )
 
+/** Permintaan satu-kali agar regex diterapkan oleh [EditorSection] (event-as-state,
+ * nonce dipakai supaya permintaan yang sama tidak diproses berulang). */
+private data class RegexRequest(val nonce: Int, val pattern: String, val replacement: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PromptNotepadApp(notesDir: File) {
@@ -113,24 +119,11 @@ private fun PromptNotepadApp(notesDir: File) {
         }
     }
 
-    var fieldValue by remember(tabManager.activeTabIndex.value) { mutableStateOf(TextFieldValue("")) }
-
-    // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
-    LaunchedEffect(tabManager.activeTabIndex.value, tabManager.openTabs.size) {
-        val tab = tabManager.activeTab()
-        if (tab != null) {
-            val result = FileUtils.readFile(tab.file)
-            fieldValue = TextFieldValue(result.getOrDefault(""))
-            if (result.isFailure) {
-                snackbarHostState.showSnackbar(errorMessage)
-            }
-        }
-    }
-
     var showFileList by remember { mutableStateOf(false) }
     var showRegexDialog by remember { mutableStateOf(false) }
     var previewMode by remember(tabManager.activeTabIndex.value) { mutableStateOf(false) }
     var pendingCloseIndex by remember { mutableStateOf<Int?>(null) }
+    var regexRequest by remember { mutableStateOf<RegexRequest?>(null) }
 
     val evictedTabName = tabManager.lastEvictedTabName.value
     LaunchedEffect(evictedTabName) {
@@ -139,21 +132,13 @@ private fun PromptNotepadApp(notesDir: File) {
         }
     }
 
+    // Catatan optimasi recomposition: `activeTab`/`isMarkdownFile` di sini hanya
+    // berubah saat tab dibuka/ditutup/berpindah (jarang) — BUKAN tiap keystroke.
+    // Isi teks yang diedit (fieldValue) sengaja TIDAK disimpan di level ini,
+    // melainkan didelegasikan ke EditorSection, supaya TopAppBar/Scaffold tidak
+    // ikut recompose setiap kali pengguna mengetik atau menggerakkan kursor.
     val activeTab = tabManager.activeTab()
     val isMarkdownFile = activeTab?.file?.extension == "md"
-
-    fun saveActiveTab(content: String) {
-        val tab = activeTab ?: return
-        tab.isDirty.value = true
-        coroutineScope.launch {
-            val result = FileUtils.writeFile(tab.file, content)
-            if (result.isSuccess) {
-                tab.isDirty.value = false
-            } else {
-                snackbarHostState.showSnackbar(errorMessage)
-            }
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -191,8 +176,15 @@ private fun PromptNotepadApp(notesDir: File) {
         containerColor = PureBlack
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            PremiumLayout(
+            EditorSection(
                 tabManager = tabManager,
+                activeTab = activeTab,
+                isMarkdownFile = isMarkdownFile,
+                previewMode = previewMode,
+                coroutineScope = coroutineScope,
+                snackbarHostState = snackbarHostState,
+                errorMessage = errorMessage,
+                regexRequest = regexRequest,
                 onCloseTab = { index ->
                     val tab = tabManager.openTabs.getOrNull(index)
                     if (tab != null && tab.isDirty.value) {
@@ -200,26 +192,8 @@ private fun PromptNotepadApp(notesDir: File) {
                     } else {
                         tabManager.closeTab(index)
                     }
-                },
-                shortcutBar = {
-                    if (!previewMode) {
-                        ShortcutBar(onInsertText = { insertText ->
-                            fieldValue = insertAtCursor(fieldValue, insertText)
-                            saveActiveTab(fieldValue.text)
-                        })
-                    }
                 }
-            ) {
-                if (previewMode && isMarkdownFile) {
-                    MarkdownViewer(content = fieldValue.text)
-                } else {
-                    TextEditor(
-                        value = fieldValue,
-                        onValueChange = { fieldValue = it },
-                        onContentChange = { newContent -> saveActiveTab(newContent) }
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -238,17 +212,7 @@ private fun PromptNotepadApp(notesDir: File) {
         RegexReplaceDialog(
             onDismiss = { showRegexDialog = false },
             onApply = { pattern, replacement ->
-                coroutineScope.launch {
-                    when (val outcome = RegexUtils.findAndReplaceAsync(fieldValue.text, pattern, replacement)) {
-                        is RegexOutcome.Success -> {
-                            fieldValue = TextFieldValue(outcome.text)
-                            saveActiveTab(outcome.text)
-                        }
-                        RegexOutcome.TimedOut -> {
-                            snackbarHostState.showSnackbar("Pola regex terlalu kompleks/lambat, dibatalkan agar aplikasi tidak macet.")
-                        }
-                    }
-                }
+                regexRequest = RegexRequest((regexRequest?.nonce ?: 0) + 1, pattern, replacement)
                 showRegexDialog = false
             }
         )
@@ -270,6 +234,88 @@ private fun PromptNotepadApp(notesDir: File) {
                 TextButton(onClick = { pendingCloseIndex = null }) { Text("Batal") }
             }
         )
+    }
+}
+
+/**
+ * Memegang state `fieldValue` (berubah tiap keystroke/kursor) secara TERISOLASI
+ * dari composable induk (TopAppBar/Scaffold), sesuai rekomendasi optimasi
+ * recomposition: hanya bagian ini yang recompose saat pengguna mengetik.
+ */
+@Composable
+private fun EditorSection(
+    tabManager: TabManager,
+    activeTab: TabItem?,
+    isMarkdownFile: Boolean,
+    previewMode: Boolean,
+    coroutineScope: CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    errorMessage: String,
+    regexRequest: RegexRequest?,
+    onCloseTab: (Int) -> Unit
+) {
+    var fieldValue by remember(activeTab?.id) { mutableStateOf(TextFieldValue("")) }
+
+    // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
+    LaunchedEffect(activeTab?.id) {
+        if (activeTab != null) {
+            val result = FileUtils.readFile(activeTab.file)
+            fieldValue = TextFieldValue(result.getOrDefault(""))
+            if (result.isFailure) {
+                snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: errorMessage)
+            }
+        }
+    }
+
+    fun saveActiveTab(content: String) {
+        val tab = activeTab ?: return
+        tab.isDirty.value = true
+        coroutineScope.launch {
+            val result = FileUtils.writeFile(tab.file, content)
+            if (result.isSuccess) {
+                tab.isDirty.value = false
+            } else {
+                snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: errorMessage)
+            }
+        }
+    }
+
+    // Bereaksi terhadap permintaan regex dari TopAppBar (dialog ada di composable induk,
+    // eksekusinya di sini karena butuh akses ke fieldValue tanpa membocorkannya ke induk).
+    LaunchedEffect(regexRequest) {
+        val req = regexRequest ?: return@LaunchedEffect
+        when (val outcome = RegexUtils.findAndReplaceAsync(fieldValue.text, req.pattern, req.replacement)) {
+            is RegexOutcome.Success -> {
+                fieldValue = TextFieldValue(outcome.text)
+                saveActiveTab(outcome.text)
+            }
+            RegexOutcome.TimedOut -> {
+                snackbarHostState.showSnackbar("Pola regex terlalu kompleks/lambat, dibatalkan agar aplikasi tidak macet.")
+            }
+        }
+    }
+
+    PremiumLayout(
+        tabManager = tabManager,
+        onCloseTab = onCloseTab,
+        shortcutBar = {
+            if (!previewMode) {
+                ShortcutBar(onInsertText = { insertText ->
+                    fieldValue = insertAtCursor(fieldValue, insertText)
+                    saveActiveTab(fieldValue.text)
+                })
+            }
+        }
+    ) {
+        if (previewMode && isMarkdownFile) {
+            MarkdownViewer(content = fieldValue.text)
+        } else {
+            TextEditor(
+                value = fieldValue,
+                onValueChange = { fieldValue = it },
+                onContentChange = { newContent -> saveActiveTab(newContent) }
+            )
+        }
     }
 }
 

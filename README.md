@@ -2,7 +2,7 @@
 
 Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa database eksternal — file mentah `.txt`/`.md` disimpan langsung di penyimpanan internal aplikasi.
 
-**Versi saat ini:** `1.1.0` (`versionCode 3`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+**Versi saat ini:** `1.2.0` (`versionCode 4`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
 
 ## Fitur
 
@@ -28,6 +28,10 @@ Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa 
 - Proteksi timeout regex (2 detik) untuk mitigasi pola yang menyebabkan *catastrophic backtracking*
 - Cek `canWrite()` sebelum menulis (proteksi file read-only/terkunci)
 - Batas 12 tab terbuka + eviction otomatis (FIFO, konten tetap aman karena sudah auto-save)
+
+### Performa (sejak v1.2.0)
+- Batas ukuran file 2MB saat dibuka di editor (cegah OOM/UI freeze pada file sangat besar)
+- Optimasi recomposition: state teks yang diedit diisolasi dari `TopAppBar`/`Scaffold`, sehingga mengetik/menggerakkan kursor tidak memicu recompose seluruh layar
 
 ## Build lokal
 ```

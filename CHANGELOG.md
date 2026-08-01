@@ -1,5 +1,12 @@
 # Changelog — PromptNotepad
 
+## [1.2.0] — Batch 2 (selesai)
+### Ditambahkan
+- Large File Handling Buffer: batas 2MB saat membuka file (`FileUtils.readFile`), pesan error spesifik ditampilkan lewat Snackbar
+- Optimasi Recomposition: state `fieldValue` diisolasi ke composable `EditorSection`, terpisah dari `TopAppBar`/`Scaffold` — kursor/ketikan tidak lagi memicu recompose seluruh tree
+### Diputuskan untuk TIDAK dikerjakan
+- Auto-save timer-debounce (3 detik): auto-save instan yang sudah ada lebih aman (jendela data-loss lebih kecil) dan sudah async — mengganti ke timer adalah kemunduran, bukan peningkatan
+
 ## [1.1.0] — Batch 1 (evaluasi lanjutan 14 item)
 ### Ditambahkan
 - Unsaved Changes Indicator (`isDirty` + titik penanda tab + dialog konfirmasi tutup tab)

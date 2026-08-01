@@ -1,6 +1,6 @@
 # FILE_MANIFEST.txt — PromptNotepad
 # Diperbarui setiap rilis. Setara output 'git ls-files' (dibuat manual karena repo git lokal belum diinisialisasi di lingkungan build ini).
-# Versi: 1.1.0 (versionCode 3)
+# Versi: 1.2.0 (versionCode 4)
 
 .github/workflows/build.yml
 .gitignore

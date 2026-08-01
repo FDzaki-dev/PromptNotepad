@@ -18,9 +18,21 @@ object FileUtils {
     private val writeDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val charset = Charset.forName("UTF-8")
 
+    /** Batas ukuran file yang boleh dibuka di editor (2MB) — di atas ini berisiko OOM/UI freeze
+     * karena BasicTextField menyimpan seluruh konten sebagai satu TextFieldValue di memori. */
+    private const val MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024
+
     suspend fun readFile(file: File): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            if (file.exists()) normalizeNewlines(file.readText(charset)) else ""
+            if (!file.exists()) {
+                ""
+            } else if (file.length() > MAX_FILE_SIZE_BYTES) {
+                throw IOException(
+                    "Berkas berukuran ${file.length() / 1024} KB, melebihi batas 2 MB yang aman dibuka di editor ini."
+                )
+            } else {
+                normalizeNewlines(file.readText(charset))
+            }
         }
     }
 
