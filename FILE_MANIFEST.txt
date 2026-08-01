@@ -4,6 +4,7 @@
 
 .github/workflows/build.yml
 .gitignore
+CHANGELOG.md
 PROJECT_STATE.md
 README.md
 app/build.gradle

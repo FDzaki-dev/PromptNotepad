@@ -8,6 +8,8 @@
 - Cek `canWrite()` sebelum menulis file (proteksi read-only)
 - Batas 12 tab terbuka + eviction otomatis (FIFO, notifikasi Snackbar)
 - `PROJECT_STATE.md`, `FILE_MANIFEST.txt`, `CHANGELOG.md` (dokumentasi wajib, sebelumnya luput dibuat)
+### Diperbaiki
+- `README.md` disinkronkan (sebelumnya masih versi v1.0.0 meski sudah 2 rilis berjalan)
 
 ## [1.0.1] — Perbaikan stabilitas
 ### Diperbaiki
