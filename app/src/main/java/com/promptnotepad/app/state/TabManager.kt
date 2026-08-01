@@ -2,6 +2,7 @@ package com.promptnotepad.app.state
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import android.net.Uri
 import com.promptnotepad.app.model.TabItem
 import java.io.File
 
@@ -22,7 +23,7 @@ class TabManager {
     var lastEvictedTabName = mutableStateOf<String?>(null)
         private set
 
-    fun openFileInTab(file: File) {
+    fun openFileInTab(file: File, sourceUri: Uri? = null) {
         val existingIndex = openTabs.indexOfFirst { it.file.absolutePath == file.absolutePath }
         if (existingIndex != -1) {
             activeTabIndex.value = existingIndex
@@ -35,7 +36,7 @@ class TabManager {
             closeTab(evictIndex)
         }
 
-        openTabs.add(TabItem(file = file))
+        openTabs.add(TabItem(file = file, sourceUri = sourceUri))
         activeTabIndex.value = openTabs.lastIndex
     }
 
@@ -57,6 +58,12 @@ class TabManager {
      * Memulihkan daftar tab yang sebelumnya terbuka (dipanggil saat aplikasi
      * dipulihkan setelah process death oleh OS), agar draf/tab yang sedang
      * dikerjakan pengguna tidak hilang begitu saja.
+     *
+     * Catatan: tab yang berasal dari "Buka Dengan" (punya `sourceUri`) tetap
+     * dipulihkan sebagai tab lokal biasa — sinkron-balik ke berkas asal TIDAK
+     * dipulihkan (Android tidak selalu memberi izin Uri permanen untuk Intent
+     * VIEW/EDIT biasa). Salinan lokal & isi teks tetap aman, hanya link
+     * sinkronisasi ke file eksternal yang terputus setelah restart proses.
      */
     fun restoreTabs(files: List<File>, activeIndex: Int) {
         if (files.isEmpty()) return

@@ -1,5 +1,13 @@
 # Changelog — PromptNotepad
 
+## [1.3.0] — Fitur "Buka Dengan" (pengganti Batch 3 SAF)
+### Ditambahkan
+- PromptNotepad kini muncul di menu "Buka Dengan" untuk file `.txt`/`.md` dari file manager/app lain
+- Berkas eksternal diimpor otomatis ke penyimpanan lokal & disinkron-balik ke berkas asal setiap auto-save
+- `launchMode="singleTop"`: tap file lain saat app sudah berjalan tetap tertangkap tanpa membuka instance baru
+### Diputuskan untuk TIDAK dikerjakan
+- Migrasi SAF/`Uri` penuh (DocumentFile, folder picker): tidak relevan karena app pakai internal storage yang tidak kena scoped storage — diganti fitur "Buka Dengan" yang lebih terarah
+
 ## [1.2.0] — Batch 2 (selesai)
 ### Ditambahkan
 - Large File Handling Buffer: batas 2MB saat membuka file (`FileUtils.readFile`), pesan error spesifik ditampilkan lewat Snackbar

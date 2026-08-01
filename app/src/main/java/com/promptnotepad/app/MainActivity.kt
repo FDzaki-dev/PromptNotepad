@@ -1,5 +1,6 @@
 package com.promptnotepad.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.promptnotepad.app.model.TabItem
@@ -49,6 +52,7 @@ import com.promptnotepad.app.ui.theme.PremiumAccent
 import com.promptnotepad.app.ui.theme.PromptNotepadTheme
 import com.promptnotepad.app.ui.theme.PureBlack
 import com.promptnotepad.app.ui.theme.TextPrimary
+import com.promptnotepad.app.util.ExternalFileUtils
 import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
@@ -58,17 +62,30 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    /** Menyimpan Intent yang sedang aktif sebagai Compose State, agar Intent baru yang
+     * masuk lewat onNewIntent (mis. tap file lain saat app sudah berjalan — didukung
+     * berkat launchMode="singleTop") bisa diteruskan ke Composition yang sudah berjalan. */
+    private val currentIntentState = mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val notesDir = File(filesDir, "notes")
         if (!notesDir.exists()) notesDir.mkdirs()
 
+        currentIntentState.value = intent
+
         setContent {
             PromptNotepadTheme {
-                PromptNotepadApp(notesDir = notesDir)
+                PromptNotepadApp(notesDir = notesDir, intentState = currentIntentState)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        currentIntentState.value = intent
     }
 }
 
@@ -98,11 +115,12 @@ private data class RegexRequest(val nonce: Int, val pattern: String, val replace
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PromptNotepadApp(notesDir: File) {
+private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>) {
     val tabManager = rememberSaveable(saver = tabManagerSaver()) { TabManager() }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val errorMessage = "Gagal menyimpan/membaca berkas. Perubahan terakhir mungkin belum tersimpan."
+    val context = LocalContext.current
 
     // QuickNote: tab coretan instan yang otomatis terbuka saat aplikasi dijalankan
     // (hanya jika belum ada tab yang dipulihkan dari saved-instance-state).
@@ -117,6 +135,30 @@ private fun PromptNotepadApp(notesDir: File) {
             }
             tabManager.openFileInTab(quickNoteFile)
         }
+    }
+
+    // "Buka Dengan": berkas eksternal dari Intent VIEW/EDIT (file manager/app lain)
+    // diimpor jadi tab baru. Dipicu ulang otomatis tiap kali intentState berubah,
+    // termasuk saat app sudah berjalan (lewat onNewIntent + launchMode singleTop).
+    val incomingIntent = intentState.value
+    LaunchedEffect(incomingIntent) {
+        val uri = incomingIntent?.data ?: return@LaunchedEffect
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (e: SecurityException) {
+            // Tidak semua provider/Intent memberi izin permanen — akses sesi ini
+            // (dari flag Intent VIEW/EDIT itu sendiri) tetap cukup untuk edit+save.
+        }
+        val result = ExternalFileUtils.importFromUri(context, uri, notesDir)
+        result.onSuccess { localFile ->
+            tabManager.openFileInTab(localFile, sourceUri = uri)
+        }.onFailure {
+            snackbarHostState.showSnackbar(it.message ?: "Gagal membuka berkas eksternal.")
+        }
+        intentState.value = null
     }
 
     var showFileList by remember { mutableStateOf(false) }
@@ -254,6 +296,7 @@ private fun EditorSection(
     regexRequest: RegexRequest?,
     onCloseTab: (Int) -> Unit
 ) {
+    val context = LocalContext.current
     var fieldValue by remember(activeTab?.id) { mutableStateOf(TextFieldValue("")) }
 
     // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
@@ -274,6 +317,18 @@ private fun EditorSection(
             val result = FileUtils.writeFile(tab.file, content)
             if (result.isSuccess) {
                 tab.isDirty.value = false
+                val uri = tab.sourceUri
+                if (uri != null) {
+                    // Sinkron-balik ke berkas asal ("Buka Dengan"). Salinan lokal SUDAH
+                    // aman tersimpan di atas — kegagalan di sini hanya berarti sinkronisasi
+                    // ke berkas eksternal yang gagal, bukan kehilangan data pengguna.
+                    val mirror = ExternalFileUtils.writeBackToUri(context, uri, content)
+                    if (mirror.isFailure) {
+                        snackbarHostState.showSnackbar(
+                            "Tersimpan lokal, tapi gagal sinkron ke berkas asal: ${mirror.exceptionOrNull()?.message ?: "izin dicabut"}"
+                        )
+                    }
+                }
             } else {
                 snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: errorMessage)
             }
