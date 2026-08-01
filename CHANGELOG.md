@@ -1,5 +1,14 @@
 # Changelog — PromptNotepad
 
+## [1.4.1] — Implementasi nyata (koreksi dari placeholder v1.4.0)
+### Ditambahkan
+- Undo/Redo sungguhan (stack per-tab, checkpoint tiap jeda ketik 600ms)
+- Cari di Berkas sungguhan (dialog cari, Berikutnya/Sebelumnya, wrap-around)
+- Gulir ke... sungguhan (Ke Awal/Ke Akhir/nomor baris)
+- Cetak sungguhan (Android Print Framework via WebView, tanpa dependensi baru)
+### Diperbaiki
+- Kelima item di atas sebelumnya (v1.4.0) hanya placeholder berlabel "(Segera Hadir)" — sekarang seluruhnya fungsional
+
 ## [1.4.0] — Redesain Layout (minimal, terinspirasi notepad pembanding)
 ### Diubah
 - TopAppBar disederhanakan jadi hanya judul — 4 ikon aksi lama (Pratinjau Markdown, Regex, Buka File, File Baru) dipindah ke `BottomFileBar` baru, tidak ada yang dihapus

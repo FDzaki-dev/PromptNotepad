@@ -1,7 +1,12 @@
 package com.promptnotepad.app
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.print.PrintAttributes
+import android.print.PrintManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
@@ -24,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.promptnotepad.app.model.TabItem
@@ -53,6 +60,7 @@ import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -280,6 +288,24 @@ private fun EditorSection(
     val context = LocalContext.current
     var fieldValue by remember(activeTab?.id) { mutableStateOf(TextFieldValue("")) }
     var showFileInfoDialog by remember { mutableStateOf(false) }
+    var showFindDialog by remember { mutableStateOf(false) }
+    var showScrollDialog by remember { mutableStateOf(false) }
+
+    // Undo/Redo: checkpoint per tab, bukan per-karakter (agar stack tidak meledak
+    // pada pengetikan cepat). Setiap 600ms jeda mengetik, state sebelumnya disimpan
+    // sebagai satu titik pulih. Direset setiap kali tab aktif berpindah.
+    val undoStack = remember(activeTab?.id) { mutableStateListOf<String>() }
+    val redoStack = remember(activeTab?.id) { mutableStateListOf<String>() }
+    var undoCheckpoint by remember(activeTab?.id) { mutableStateOf(fieldValue.text) }
+    LaunchedEffect(activeTab?.id, fieldValue.text) {
+        delay(600)
+        if (fieldValue.text != undoCheckpoint) {
+            undoStack.add(undoCheckpoint)
+            if (undoStack.size > 100) undoStack.removeAt(0)
+            redoStack.clear()
+            undoCheckpoint = fieldValue.text
+        }
+    }
 
     // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
     LaunchedEffect(activeTab?.id) {
@@ -315,6 +341,30 @@ private fun EditorSection(
                 snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: errorMessage)
             }
         }
+    }
+
+    fun performUndo() {
+        if (undoStack.isEmpty()) {
+            coroutineScope.launch { snackbarHostState.showSnackbar("Tidak ada lagi yang bisa diurungkan.") }
+            return
+        }
+        val previous = undoStack.removeAt(undoStack.lastIndex)
+        redoStack.add(fieldValue.text)
+        undoCheckpoint = previous
+        fieldValue = TextFieldValue(previous, selection = TextRange(previous.length))
+        saveActiveTab(previous)
+    }
+
+    fun performRedo() {
+        if (redoStack.isEmpty()) {
+            coroutineScope.launch { snackbarHostState.showSnackbar("Tidak ada lagi yang bisa diulangi.") }
+            return
+        }
+        val next = redoStack.removeAt(redoStack.lastIndex)
+        undoStack.add(fieldValue.text)
+        undoCheckpoint = next
+        fieldValue = TextFieldValue(next, selection = TextRange(next.length))
+        saveActiveTab(next)
     }
 
     // Bereaksi terhadap permintaan regex dari TopAppBar (dialog ada di composable induk,
@@ -354,11 +404,20 @@ private fun EditorSection(
                         add(OverflowMenuItem(label = "Pratinjau Markdown", onClick = onTogglePreview))
                     }
                     add(OverflowMenuItem(label = "Cari & Ganti (Regex)", onClick = onOpenRegexDialog))
-                    add(OverflowMenuItem(label = "Urungkan (Undo)", available = false))
-                    add(OverflowMenuItem(label = "Ulangi (Redo)", available = false))
-                    add(OverflowMenuItem(label = "Cari di Berkas", available = false))
-                    add(OverflowMenuItem(label = "Cetak", available = false))
-                    add(OverflowMenuItem(label = "Gulir ke...", available = false))
+                    add(OverflowMenuItem(label = "Urungkan (Undo)", onClick = { performUndo() }))
+                    add(OverflowMenuItem(label = "Ulangi (Redo)", onClick = { performRedo() }))
+                    add(OverflowMenuItem(label = "Cari di Berkas", onClick = { showFindDialog = true }))
+                    add(
+                        OverflowMenuItem(
+                            label = "Cetak",
+                            onClick = {
+                                if (activeTab != null) {
+                                    printDocument(context, activeTab.title, fieldValue.text)
+                                }
+                            }
+                        )
+                    )
+                    add(OverflowMenuItem(label = "Gulir ke...", onClick = { showScrollDialog = true }))
                     add(
                         OverflowMenuItem(
                             label = "Info Berkas",
@@ -391,6 +450,184 @@ private fun EditorSection(
     if (showFileInfoDialog && activeTab != null) {
         FileInfoDialog(tab = activeTab, onDismiss = { showFileInfoDialog = false })
     }
+
+    if (showFindDialog) {
+        FindInFileDialog(
+            text = fieldValue.text,
+            onJumpTo = { range ->
+                fieldValue = fieldValue.copy(selection = TextRange(range.first, range.last + 1))
+            },
+            onDismiss = { showFindDialog = false }
+        )
+    }
+
+    if (showScrollDialog) {
+        ScrollToDialog(
+            text = fieldValue.text,
+            onScrollToOffset = { offset ->
+                val clamped = offset.coerceIn(0, fieldValue.text.length)
+                fieldValue = fieldValue.copy(selection = TextRange(clamped))
+                showScrollDialog = false
+            },
+            onDismiss = { showScrollDialog = false }
+        )
+    }
+}
+
+/**
+ * Mengirim konten tab aktif ke sistem cetak Android (Print Framework bawaan,
+ * tanpa dependensi baru) lewat WebView sebagai perantara render — hanya dipakai
+ * sesaat untuk menghasilkan PrintDocumentAdapter, tidak ditampilkan ke pengguna.
+ */
+private fun printDocument(context: Context, title: String, content: String) {
+    val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return
+    val webView = WebView(context)
+    webView.webViewClient = object : WebViewClient() {
+        override fun onPageFinished(view: WebView, url: String?) {
+            val adapter = view.createPrintDocumentAdapter(title)
+            printManager.print(title, adapter, PrintAttributes.Builder().build())
+        }
+    }
+    val escaped = content
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    val html = "<pre style=\"font-family:monospace;white-space:pre-wrap;word-wrap:break-word;\">$escaped</pre>"
+    webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+}
+
+/**
+ * Dialog cari-di-berkas: pencarian case-insensitive pada teks tab aktif.
+ * "Berikutnya"/"Sebelumnya" berputar (wrap-around) melalui seluruh kecocokan.
+ * Melompat ke kecocokan dilakukan dengan memindah `selection` field editor —
+ * BasicTextField otomatis menggulir agar posisi kursor/seleksi tetap terlihat,
+ * jadi tidak perlu state scroll tambahan.
+ */
+@Composable
+private fun FindInFileDialog(
+    text: String,
+    onJumpTo: (IntRange) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    var matchIndex by remember { mutableStateOf(0) }
+
+    val matches = remember(text, query) {
+        if (query.isEmpty()) {
+            emptyList()
+        } else {
+            val found = mutableListOf<IntRange>()
+            var start = 0
+            while (true) {
+                val idx = text.indexOf(query, start, ignoreCase = true)
+                if (idx == -1) break
+                found.add(idx until (idx + query.length))
+                start = idx + 1
+            }
+            found
+        }
+    }
+
+    fun jumpToCurrent() {
+        if (matches.isNotEmpty()) {
+            onJumpTo(matches[matchIndex.coerceIn(0, matches.lastIndex)])
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Cari di Berkas") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = {
+                        query = it
+                        matchIndex = 0
+                    },
+                    label = { Text("Kata kunci") }
+                )
+                Text(
+                    text = if (query.isEmpty()) {
+                        "Ketik untuk mencari"
+                    } else if (matches.isEmpty()) {
+                        "Tidak ditemukan"
+                    } else {
+                        "Kecocokan ${matchIndex + 1} dari ${matches.size}"
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (matches.isNotEmpty()) {
+                    matchIndex = (matchIndex + 1) % matches.size
+                    jumpToCurrent()
+                }
+            }) { Text("Berikutnya") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = {
+                    if (matches.isNotEmpty()) {
+                        matchIndex = (matchIndex - 1 + matches.size) % matches.size
+                        jumpToCurrent()
+                    }
+                }) { Text("Sebelumnya") }
+                TextButton(onClick = onDismiss) { Text("Tutup") }
+            }
+        }
+    )
+}
+
+/**
+ * Dialog gulir-ke: pintasan Awal/Akhir berkas, atau nomor baris spesifik.
+ * Sama seperti [FindInFileDialog], cukup memindah `selection` — BasicTextField
+ * yang menangani penggulirannya secara otomatis.
+ */
+@Composable
+private fun ScrollToDialog(
+    text: String,
+    onScrollToOffset: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var lineInput by remember { mutableStateOf("") }
+    val lineStartOffsets = remember(text) {
+        val offsets = mutableListOf(0)
+        text.forEachIndexed { index, c -> if (c == '\n') offsets.add(index + 1) }
+        offsets
+    }
+    val lineCount = lineStartOffsets.size
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gulir ke...") },
+        text = {
+            Column {
+                Text("Berkas ini punya $lineCount baris.")
+                OutlinedTextField(
+                    value = lineInput,
+                    onValueChange = { lineInput = it.filter(Char::isDigit) },
+                    label = { Text("Nomor baris") }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val line = lineInput.toIntOrNull()
+                if (line != null && line in 1..lineCount) {
+                    onScrollToOffset(lineStartOffsets[line - 1])
+                }
+            }) { Text("Ke Baris") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { onScrollToOffset(0) }) { Text("Ke Awal") }
+                TextButton(onClick = { onScrollToOffset(text.length) }) { Text("Ke Akhir") }
+                TextButton(onClick = onDismiss) { Text("Batal") }
+            }
+        }
+    )
 }
 
 /**

@@ -4,9 +4,9 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 6` / `versionName "1.4.0"`
-- **Batch terakhir selesai:** Redesain Layout Bottom Bar (minimalisasi TopAppBar + BottomFileBar bergaya notepad pembanding)
-- **Batch berikutnya (menunggu keputusan user):** Batch 4 (Undo/Redo, keyboard shortcut) — kini juga jadi kandidat pengisi item menu ⋮ "Urungkan/Ulangi" yang sekarang berstatus "Segera Hadir"
+- **Versi:** `versionCode 7` / `versionName "1.4.1"`
+- **Batch terakhir selesai:** Implementasi NYATA untuk Undo/Redo, Cari di Berkas, Cetak, Gulir ke... (BUKAN lagi placeholder "Segera Hadir" — lihat insiden #10)
+- **Batch berikutnya (menunggu keputusan user):** Tidak ada item tersisa dari daftar 5 item menu ⋮; semua sudah fungsional penuh
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -40,6 +40,13 @@
    - `ui/theme/Color.kt`: `PureBlack`/`DeepGray`/`SurfaceGray`/`PremiumBorder` dilunakkan nilainya (bukan lagi 0x000000 murni) untuk mengurangi kontras AMOLED yang dikeluhkan tidak nyaman di mata — nama identifier dipertahankan apa adanya jadi tidak ada file lain yang perlu diubah.
    - `PremiumLayout.kt`: tambah slot `bottomFileBar` (default kosong, backward compatible) di antara area editor dan `ShortcutBar`.
    - **Tidak ada fitur yang dihapus** — semua 4 aksi TopAppBar lama tetap ada dan berfungsi identik, hanya lokasinya berpindah. Verifikasi anti-regresi dilakukan manual (tidak ada toolchain Gradle/Android SDK dengan akses jaringan di lingkungan pembuatan ini untuk build asli) — cek keseimbangan kurung/brace, jejak import tak terpakai dibersihkan, dan penelusuran manual bahwa tiap ikon lama punya callback pengganti persis.
+
+10. **[Koreksi: implementasi NYATA menggantikan placeholder — v1.4.1]** ⚠️ User menegaskan bahwa 5 item menu ⋮ yang di batch sebelumnya diberi label "(Segera Hadir)" (abu-abu, tidak berfungsi) **harus diimplementasikan sungguhan**, bukan diakali dengan tampilan terkunci. Semua 5 item kini fungsional penuh:
+    - **Undo/Redo:** stack per-tab (`undoStack`/`redoStack`, direset saat pindah tab), checkpoint diambil setiap jeda ketik 600ms (bukan per-karakter, agar stack tidak meledak) lewat `LaunchedEffect(activeTab?.id, fieldValue.text)` + `delay(600)`. Batas 100 checkpoint per tab. Undo/redo memicu `saveActiveTab` seperti edit biasa.
+    - **Cari di Berkas:** `FindInFileDialog` — pencarian case-insensitive, tombol Berikutnya/Sebelumnya berputar (wrap-around) di semua kecocokan.
+    - **Gulir ke...:** `ScrollToDialog` — tombol Ke Awal/Ke Akhir + input nomor baris. Kedua fitur ini (Cari & Gulir) **tidak butuh state scroll kustom** — cukup memindah `fieldValue.selection`, karena `BasicTextField` sudah otomatis menggulir agar posisi kursor/seleksi tetap terlihat.
+    - **Cetak:** fungsi `printDocument()` — memakai Android Print Framework bawaan (`android.print.PrintManager`) lewat `WebView` sebagai perantara render teks ke `PrintDocumentAdapter`, tanpa dependensi/library baru. **Keterbatasan yang didokumentasikan:** `WebView` dibuat sesaat tanpa dipasang ke hierarki tampilan (view hierarchy) — pola umum untuk print-teks-sederhana, tapi berperilaku tidak 100% konsisten di semua versi/vendor Android dibanding WebView yang ditempel ke layar. Jika ditemukan device yang gagal, solusi lanjutannya adalah menempelkan WebView tersembunyi ke root Activity.
+    - **Verifikasi:** tidak ada toolchain Gradle/Android SDK di lingkungan pembuatan ini untuk build asli — verifikasi dilakukan lewat pengecekan keseimbangan kurung, jejak semua import baru dipastikan terpakai, dan penelusuran manual bahwa setiap item menu ⋮ punya `onClick` nyata (bukan `available = false`).
 
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
