@@ -2,7 +2,7 @@
 
 Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa database eksternal — file mentah `.txt`/`.md` disimpan langsung di penyimpanan internal aplikasi.
 
-**Versi saat ini:** `1.3.0` (`versionCode 5`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+**Versi saat ini:** `1.4.0` (`versionCode 6`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
 
 ## Fitur
 
@@ -37,6 +37,12 @@ Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa 
 - Muncul di menu **"Buka Dengan"** Android untuk file `.txt`/`.md` (dari file manager, aplikasi lain, dsb) — seperti TxtPad+
 - Berkas eksternal otomatis diimpor & disinkron-balik ke berkas asal setiap auto-save
 - Membuka file eksternal yang sama berulang kali tetap ter-mapping ke satu tab (bukan duplikat)
+
+### Layout Minimal (sejak v1.4.0)
+- TopAppBar disederhanakan jadi hanya judul aplikasi (bukan deretan ikon tanpa label)
+- Bar bawah baru (di atas shortcut bar): ikon buka berkas + nama tab aktif + ikon file baru, langsung terlihat
+- Menu **⋮** mengelompokkan sisanya: Pratinjau Markdown & Cari/Ganti Regex (fungsional), Undo/Redo/Cari di Berkas/Cetak/Gulir ke... (berlabel "Segera Hadir" — belum tersedia), dan Info Berkas (nama, path, ukuran, waktu diubah)
+- Warna latar dilunakkan dari AMOLED hitam pekat ke abu-abu gelap agar lebih nyaman di mata
 
 ## Build lokal
 ```

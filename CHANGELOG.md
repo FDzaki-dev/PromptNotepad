@@ -1,5 +1,13 @@
 # Changelog — PromptNotepad
 
+## [1.4.0] — Redesain Layout (minimal, terinspirasi notepad pembanding)
+### Diubah
+- TopAppBar disederhanakan jadi hanya judul — 4 ikon aksi lama (Pratinjau Markdown, Regex, Buka File, File Baru) dipindah ke `BottomFileBar` baru, tidak ada yang dihapus
+- Warna latar AMOLED hitam pekat (`0x000000`) dilunakkan ke abu-abu gelap agar tidak terlalu keras di mata
+### Ditambahkan
+- `BottomFileBar`: bar minimal (ikon buka berkas, nama tab aktif, ikon file baru, menu ⋮)
+- Menu ⋮ berisi: Pratinjau Markdown & Cari/Ganti Regex (fungsional, fitur lama yang sama), Undo/Redo/Cari di Berkas/Cetak/Gulir ke... (ditandai "Segera Hadir", belum diimplementasikan), dan **Info Berkas** (baru, fungsional — nama/path/ukuran/waktu ubah)
+
 ## [1.3.0] — Fitur "Buka Dengan" (pengganti Batch 3 SAF)
 ### Ditambahkan
 - PromptNotepad kini muncul di menu "Buka Dengan" untuk file `.txt`/`.md` dari file manager/app lain

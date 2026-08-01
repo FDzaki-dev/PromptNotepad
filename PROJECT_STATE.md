@@ -4,9 +4,9 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 5` / `versionName "1.3.0"`
-- **Batch terakhir selesai:** Fitur "Buka Dengan" (file association) — pengganti Batch 3 SAF yang di-skip
-- **Batch berikutnya (menunggu keputusan user):** Batch 4 (Undo/Redo, keyboard shortcut)
+- **Versi:** `versionCode 6` / `versionName "1.4.0"`
+- **Batch terakhir selesai:** Redesain Layout Bottom Bar (minimalisasi TopAppBar + BottomFileBar bergaya notepad pembanding)
+- **Batch berikutnya (menunggu keputusan user):** Batch 4 (Undo/Redo, keyboard shortcut) — kini juga jadi kandidat pengisi item menu ⋮ "Urungkan/Ulangi" yang sekarang berstatus "Segera Hadir"
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -33,6 +33,14 @@
    - Arsitektur internal (`FileUtils`, penyimpanan `.txt`/`.md` lokal) **tidak diubah sama sekali** — berkas eksternal tetap lewat jalur lokal yang sudah teruji, sinkronisasi Uri hanya lapisan tambahan di atasnya
    - **Keterbatasan yang didokumentasikan (bukan bug tersembunyi):** setelah process death, link sinkronisasi ke Uri asal terputus (Android tidak selalu beri izin Uri permanen untuk Intent VIEW/EDIT biasa) — salinan lokal & isi teks tetap aman, cuma auto-sync ke file eksternal berhenti sampai file dibuka ulang lewat "Buka Dengan"
 
+9. **[Redesain Layout — v1.4.0]** User memberi masukan: layout dirasa terlalu ramai, tema AMOLED hitam pekat terasa tidak nyaman, dan banyak ikon di TopAppBar tanpa label jelas — dibandingkan dengan aplikasi notepad lain (bottom bar minimal: ikon browse, nama file, ikon pensil, menu ⋮ berisi item terkunci "(Premium feature)"). Perubahan **murni UI/layout, tanpa mengubah arsitektur penyimpanan/I/O/state**:
+   - `TopAppBar` disederhanakan jadi hanya judul "PromptNotepad" — 4 ikon aksi (Pratinjau Markdown, Regex, Buka File, File Baru) dipindah, bukan dihapus.
+   - `BottomFileBar.kt` (baru): bar minimal di atas `ShortcutBar` — ikon buka berkas + nama tab aktif + ikon file baru tetap tampil langsung (dua aksi paling sering dipakai), sisanya masuk menu ⋮ (`DropdownMenu`): Pratinjau Markdown & Cari/Ganti Regex (fungsional, tetap ke fitur lama yang sama persis), plus Undo/Redo/Cari di Berkas/Cetak/Gulir ke... berlabel "(Segera Hadir)" — abu-abu, meniru pola item terkunci di app pembanding tapi dengan istilah jujur "Segera Hadir" (bukan "Premium") karena PromptNotepad **tidak** punya sistem berlangganan/pembelian.
+   - **Info Berkas** (item menu ⋮ terakhir): satu-satunya item baru yang benar-benar fungsional — dialog menampilkan nama, path, ukuran, waktu terakhir diubah dari `TabItem.file` (metadata saja, tanpa I/O baru).
+   - `ui/theme/Color.kt`: `PureBlack`/`DeepGray`/`SurfaceGray`/`PremiumBorder` dilunakkan nilainya (bukan lagi 0x000000 murni) untuk mengurangi kontras AMOLED yang dikeluhkan tidak nyaman di mata — nama identifier dipertahankan apa adanya jadi tidak ada file lain yang perlu diubah.
+   - `PremiumLayout.kt`: tambah slot `bottomFileBar` (default kosong, backward compatible) di antara area editor dan `ShortcutBar`.
+   - **Tidak ada fitur yang dihapus** — semua 4 aksi TopAppBar lama tetap ada dan berfungsi identik, hanya lokasinya berpindah. Verifikasi anti-regresi dilakukan manual (tidak ada toolchain Gradle/Android SDK dengan akses jaringan di lingkungan pembuatan ini untuk build asli) — cek keseimbangan kurung/brace, jejak import tak terpakai dibersihkan, dan penelusuran manual bahwa tiap ikon lama punya callback pengganti persis.
+
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
 - **Concurrency:** `Dispatchers.IO.limitedParallelism(1)` khusus untuk write (urutan auto-save terjamin, no race). `Dispatchers.Default.limitedParallelism(1)` khusus untuk regex (isolasi agar pola "meledak" tidak menyita thread pool lain).
@@ -46,7 +54,8 @@ app/src/main/java/com/promptnotepad/app/
 ├── model/                 # TabItem (+ isDirty, sourceUri), TodoTask
 ├── state/                 # TabManager (tab list, active index, eviction)
 ├── ui/                    # TextEditor, TabBar, ShortcutBar, PremiumLayout,
-│                           # MarkdownViewer, TodoHighlighter, theme/
+│                           # BottomFileBar (baru, menu ⋮), MarkdownViewer,
+│                           # TodoHighlighter, theme/
 └── util/                  # FileUtils (I/O async), RegexUtils (async+timeout),
                             # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser
 ```

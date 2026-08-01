@@ -24,6 +24,7 @@ import com.promptnotepad.app.ui.theme.PureBlack
 fun PremiumLayout(
     tabManager: TabManager,
     onCloseTab: (Int) -> Unit = { index -> tabManager.closeTab(index) },
+    bottomFileBar: @Composable () -> Unit = {},
     shortcutBar: @Composable () -> Unit = {},
     editorContent: @Composable () -> Unit
 ) {
@@ -45,6 +46,8 @@ fun PremiumLayout(
             editorContent()
         }
 
+        HorizontalDivider(thickness = 1.dp, color = PremiumBorder)
+        bottomFileBar()
         HorizontalDivider(thickness = 1.dp, color = PremiumBorder)
         shortcutBar()
     }

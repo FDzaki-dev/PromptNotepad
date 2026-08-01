@@ -1,6 +1,6 @@
 # FILE_MANIFEST.txt — PromptNotepad
 # Diperbarui setiap rilis. Setara output 'git ls-files' (dibuat manual karena repo git lokal belum diinisialisasi di lingkungan build ini).
-# Versi: 1.3.0 (versionCode 5)
+# Versi: 1.4.0 (versionCode 6)
 
 .github/workflows/build.yml
 .gitignore
@@ -14,6 +14,7 @@ app/src/main/java/com/promptnotepad/app/MainActivity.kt
 app/src/main/java/com/promptnotepad/app/model/TabItem.kt
 app/src/main/java/com/promptnotepad/app/model/TodoTask.kt
 app/src/main/java/com/promptnotepad/app/state/TabManager.kt
+app/src/main/java/com/promptnotepad/app/ui/BottomFileBar.kt
 app/src/main/java/com/promptnotepad/app/ui/MarkdownViewer.kt
 app/src/main/java/com/promptnotepad/app/ui/PremiumLayout.kt
 app/src/main/java/com/promptnotepad/app/ui/ShortcutBar.kt

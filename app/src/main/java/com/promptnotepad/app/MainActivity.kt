@@ -10,14 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -42,7 +36,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.promptnotepad.app.model.TabItem
 import com.promptnotepad.app.state.TabManager
+import com.promptnotepad.app.ui.BottomFileBar
 import com.promptnotepad.app.ui.MarkdownViewer
+import com.promptnotepad.app.ui.OverflowMenuItem
 import com.promptnotepad.app.ui.PremiumLayout
 import com.promptnotepad.app.ui.ShortcutBar
 import com.promptnotepad.app.ui.TextEditor
@@ -58,6 +54,8 @@ import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -186,32 +184,7 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
         topBar = {
             TopAppBar(
                 title = { Text("PromptNotepad", color = TextPrimary) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepGray),
-                actions = {
-                    if (isMarkdownFile) {
-                        IconButton(onClick = { previewMode = !previewMode }) {
-                            Icon(Icons.Filled.Visibility, contentDescription = "Pratinjau Markdown", tint = PremiumAccent)
-                        }
-                    }
-                    IconButton(onClick = { showRegexDialog = true }) {
-                        Text(".*", color = PremiumAccent, modifier = Modifier.padding(horizontal = 8.dp))
-                    }
-                    IconButton(onClick = { showFileList = true }) {
-                        Icon(Icons.Filled.FolderOpen, contentDescription = "Buka File", tint = PremiumAccent)
-                    }
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            val result = FileUtils.createNewFile(notesDir, "Catatan")
-                            result.onSuccess { newFile ->
-                                tabManager.openFileInTab(newFile)
-                            }.onFailure {
-                                snackbarHostState.showSnackbar(errorMessage)
-                            }
-                        }
-                    }) {
-                        Icon(Icons.Filled.Add, contentDescription = "File Baru", tint = PremiumAccent)
-                    }
-                }
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepGray)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -223,10 +196,14 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
                 activeTab = activeTab,
                 isMarkdownFile = isMarkdownFile,
                 previewMode = previewMode,
+                onTogglePreview = { previewMode = !previewMode },
+                notesDir = notesDir,
                 coroutineScope = coroutineScope,
                 snackbarHostState = snackbarHostState,
                 errorMessage = errorMessage,
                 regexRequest = regexRequest,
+                onBrowseFiles = { showFileList = true },
+                onOpenRegexDialog = { showRegexDialog = true },
                 onCloseTab = { index ->
                     val tab = tabManager.openTabs.getOrNull(index)
                     if (tab != null && tab.isDirty.value) {
@@ -290,14 +267,19 @@ private fun EditorSection(
     activeTab: TabItem?,
     isMarkdownFile: Boolean,
     previewMode: Boolean,
+    onTogglePreview: () -> Unit,
+    notesDir: File,
     coroutineScope: CoroutineScope,
     snackbarHostState: SnackbarHostState,
     errorMessage: String,
     regexRequest: RegexRequest?,
+    onBrowseFiles: () -> Unit,
+    onOpenRegexDialog: () -> Unit,
     onCloseTab: (Int) -> Unit
 ) {
     val context = LocalContext.current
     var fieldValue by remember(activeTab?.id) { mutableStateOf(TextFieldValue("")) }
+    var showFileInfoDialog by remember { mutableStateOf(false) }
 
     // Muat ulang isi berkas setiap kali tab aktif berpindah (async, tidak memblokir UI).
     LaunchedEffect(activeTab?.id) {
@@ -353,6 +335,39 @@ private fun EditorSection(
     PremiumLayout(
         tabManager = tabManager,
         onCloseTab = onCloseTab,
+        bottomFileBar = {
+            BottomFileBar(
+                activeFileName = activeTab?.title,
+                onBrowseFiles = onBrowseFiles,
+                onNewFile = {
+                    coroutineScope.launch {
+                        val result = FileUtils.createNewFile(notesDir, "Catatan")
+                        result.onSuccess { newFile ->
+                            tabManager.openFileInTab(newFile)
+                        }.onFailure {
+                            snackbarHostState.showSnackbar(errorMessage)
+                        }
+                    }
+                },
+                menuItems = buildList {
+                    if (isMarkdownFile) {
+                        add(OverflowMenuItem(label = "Pratinjau Markdown", onClick = onTogglePreview))
+                    }
+                    add(OverflowMenuItem(label = "Cari & Ganti (Regex)", onClick = onOpenRegexDialog))
+                    add(OverflowMenuItem(label = "Urungkan (Undo)", available = false))
+                    add(OverflowMenuItem(label = "Ulangi (Redo)", available = false))
+                    add(OverflowMenuItem(label = "Cari di Berkas", available = false))
+                    add(OverflowMenuItem(label = "Cetak", available = false))
+                    add(OverflowMenuItem(label = "Gulir ke...", available = false))
+                    add(
+                        OverflowMenuItem(
+                            label = "Info Berkas",
+                            onClick = { if (activeTab != null) showFileInfoDialog = true }
+                        )
+                    )
+                }
+            )
+        },
         shortcutBar = {
             if (!previewMode) {
                 ShortcutBar(onInsertText = { insertText ->
@@ -372,6 +387,43 @@ private fun EditorSection(
             )
         }
     }
+
+    if (showFileInfoDialog && activeTab != null) {
+        FileInfoDialog(tab = activeTab, onDismiss = { showFileInfoDialog = false })
+    }
+}
+
+/**
+ * Dialog info berkas — satu-satunya item menu ⋮ yang benar-benar berfungsi penuh
+ * (bukan placeholder "Segera Hadir"), menampilkan nama, path, ukuran, dan waktu
+ * terakhir diubah dari data `File` yang sudah tersedia di [TabItem]. Tidak
+ * menyentuh I/O baru — hanya membaca metadata file yang sudah ada.
+ */
+@Composable
+private fun FileInfoDialog(tab: TabItem, onDismiss: () -> Unit) {
+    val file = tab.file
+    val sizeText = if (file.exists()) "${file.length()} bytes" else "Belum tersimpan ke disk"
+    val modifiedText = if (file.exists() && file.lastModified() > 0) {
+        SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(file.lastModified())
+    } else {
+        "-"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } },
+        title = { Text("Info Berkas") },
+        text = {
+            Column {
+                Text("Nama: ${tab.title}")
+                Text("Lokasi: ${file.absolutePath}")
+                Text("Ukuran: $sizeText")
+                Text("Terakhir diubah: $modifiedText")
+                if (tab.sourceUri != null) {
+                    Text("Tersinkron dari berkas eksternal (\"Buka Dengan\")")
+                }
+            }
+        }
+    )
 }
 
 @Composable
