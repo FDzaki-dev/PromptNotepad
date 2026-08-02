@@ -2,7 +2,7 @@
 
 Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa database eksternal — file mentah `.txt`/`.md` disimpan langsung di penyimpanan internal aplikasi.
 
-**Versi saat ini:** `1.4.1` (`versionCode 7`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+**Versi saat ini:** `1.4.2` (`versionCode 8`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
 
 ## Fitur
 
@@ -50,6 +50,10 @@ Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa 
 - Gulir ke Awal/Akhir/nomor baris tertentu
 - Cetak lewat Android Print Framework bawaan (pilih printer/simpan sebagai PDF)
 
+### Audit & Perbaikan Bug (sejak v1.4.2)
+- Dispatcher Cari & Ganti Regex tidak lagi bisa macet permanen akibat pola bermasalah (thread pool terisolasi diganti dari 1 thread yang dipakai ulang ke cached pool)
+- Item menu terkunci (jika ada di masa depan) kini benar-benar diblokir dari eksekusi, bukan cuma tampil abu-abu
+
 ## Build lokal
 ```
 ./gradlew assembleRelease
@@ -59,16 +63,18 @@ Signing config release membaca dari `keystore.properties` (lokal) atau environme
 ## Struktur Proyek
 ```
 app/src/main/java/com/promptnotepad/app/
-├── MainActivity.kt        # Entry point, wiring seluruh state & UI
-├── model/                 # TabItem (+ isDirty), TodoTask
+├── MainActivity.kt        # Entry point, wiring seluruh state & UI, handle Intent VIEW/EDIT
+├── model/                 # TabItem (+ isDirty, sourceUri), TodoTask
 ├── state/                 # TabManager (tab list, active index, eviction)
 ├── ui/                    # TextEditor, TabBar, ShortcutBar, PremiumLayout,
-│                           # MarkdownViewer, TodoHighlighter, theme/
-└── util/                  # FileUtils (I/O async), RegexUtils (async+timeout), TodoParser
+│                           # BottomFileBar (menu ⋮), MarkdownViewer,
+│                           # TodoHighlighter, theme/
+└── util/                  # FileUtils (I/O async), RegexUtils (async+timeout),
+                            # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser
 ```
 
-## Roadmap (belum dikerjakan)
-- Batch 2: auto-save timer-debounce, optimasi recomposition, buffer file besar
-- Batch 3: migrasi Storage Access Framework/`Uri`, `SavedStateHandle`/ViewModel formal
-- Batch 4: Undo/Redo stack, Hardware keyboard shortcuts
+## Roadmap (rencana disepakati — dikerjakan berurutan per batch)
+- **Batch 2:** Pengaturan Tampilan — ukuran font bisa diatur, toggle tema terang/gelap (default tetap gelap)
+- **Batch 3:** Info Berkas lengkap — tambah jumlah kata & karakter
+- Hardware keyboard shortcuts (`onKeyEvent`) — belum dijadwalkan ke batch tertentu
 

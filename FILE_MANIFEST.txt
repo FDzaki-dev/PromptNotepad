@@ -1,10 +1,7 @@
-# FILE_MANIFEST.txt — PromptNotepad
-# Diperbarui setiap rilis. Setara output 'git ls-files' (dibuat manual karena repo git lokal belum diinisialisasi di lingkungan build ini).
-# Versi: 1.4.1 (versionCode 7)
-
 .github/workflows/build.yml
 .gitignore
 CHANGELOG.md
+FILE_MANIFEST.txt
 PROJECT_STATE.md
 README.md
 app/build.gradle

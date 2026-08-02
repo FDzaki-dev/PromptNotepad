@@ -1,5 +1,14 @@
 # Changelog — PromptNotepad
 
+## [1.4.2] — Audit kecacatan logika, Batch 1 (perbaikan bug)
+### Diperbaiki
+- **Regex dispatcher macet permanen:** `RegexUtils` sebelumnya memakai 1 thread yang dipakai ulang selamanya (`Dispatchers.Default.limitedParallelism(1)`) — satu pola regex bermasalah (catastrophic backtracking) yang timeout akan memblokir SEMUA permintaan Cari & Ganti Regex berikutnya sampai app di-restart. Diganti ke cached thread pool terisolasi.
+- **Menu terkunci belum ada guard:** item menu ⋮ berstatus "Segera Hadir" (`available=false`) sebelumnya tetap bisa memicu `onClick` (belum bermanifestasi karena semua item saat ini fungsional). Ditambah `enabled=` + guard eksplisit.
+### Ditinjau, sengaja tidak diubah
+- Hash 32-bit nama file lokal untuk berkas impor eksternal — mengganti algoritmanya berisiko menduplikasi berkas yang sudah pernah diimpor pengguna lama; risiko tabrakan di praktik nyaris tidak pernah terjadi
+### Catatan
+- Ini Batch 1 dari rencana besar "implementasikan semua fitur TxtPad+ hingga matang + audit kecacatan logika" — Batch 2 (font & tema) dan Batch 3 (Info Berkas: jumlah kata/karakter) menyusul di rilis berikutnya
+
 ## [1.4.1] — Implementasi nyata (koreksi dari placeholder v1.4.0)
 ### Ditambahkan
 - Undo/Redo sungguhan (stack per-tab, checkpoint tiap jeda ketik 600ms)

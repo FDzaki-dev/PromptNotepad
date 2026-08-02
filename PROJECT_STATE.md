@@ -4,9 +4,11 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 7` / `versionName "1.4.1"`
-- **Batch terakhir selesai:** Implementasi NYATA untuk Undo/Redo, Cari di Berkas, Cetak, Gulir ke... (BUKAN lagi placeholder "Segera Hadir" — lihat insiden #10)
-- **Batch berikutnya (menunggu keputusan user):** Tidak ada item tersisa dari daftar 5 item menu ⋮; semua sudah fungsional penuh
+- **Versi:** `versionCode 8` / `versionName "1.4.2"`
+- **Batch terakhir selesai:** Batch 1 dari rencana "Implementasikan semua fitur TxtPad+ + audit kecacatan logika" — 2 bug hasil audit diperbaiki (lihat insiden #11)
+- **Batch berikutnya (rencana disepakati user — kerjakan berurutan, jangan sekaligus):**
+  1. **Batch 2 — Pengaturan Tampilan:** ukuran font bisa diatur + toggle tema terang/gelap (default TETAP gelap, terang jadi opsi)
+  2. **Batch 3 — Info Berkas lengkap:** tambah jumlah kata & karakter (saat ini baru ukuran file + tanggal)
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -48,6 +50,12 @@
     - **Cetak:** fungsi `printDocument()` — memakai Android Print Framework bawaan (`android.print.PrintManager`) lewat `WebView` sebagai perantara render teks ke `PrintDocumentAdapter`, tanpa dependensi/library baru. **Keterbatasan yang didokumentasikan:** `WebView` dibuat sesaat tanpa dipasang ke hierarki tampilan (view hierarchy) — pola umum untuk print-teks-sederhana, tapi berperilaku tidak 100% konsisten di semua versi/vendor Android dibanding WebView yang ditempel ke layar. Jika ditemukan device yang gagal, solusi lanjutannya adalah menempelkan WebView tersembunyi ke root Activity.
     - **Verifikasi:** tidak ada toolchain Gradle/Android SDK di lingkungan pembuatan ini untuk build asli — verifikasi dilakukan lewat pengecekan keseimbangan kurung, jejak semua import baru dipastikan terpakai, dan penelusuran manual bahwa setiap item menu ⋮ punya `onClick` nyata (bukan `available = false`).
 
+11. **[Audit kecacatan logika + Batch 1 — v1.4.2]** User meminta: "implementasikan semua fitur TxtPad+ hingga matang" + "audit semua kecacatan logika". Seluruh 17 file `.kt` ditelusuri manual dan fitur TxtPad+ asli diriset dari Play Store/ulasan pengguna sebelum mulai kerja (bukan tebakan). Temuan & disepakati: kerjakan berurutan per batch (bukan sekaligus), tema default TETAP gelap. Batch 1 = perbaikan bug saja:
+    - **Bug nyata (diperbaiki):** `RegexUtils.regexDispatcher` sebelumnya `Dispatchers.Default.limitedParallelism(1)` — 1 thread dipakai ulang selamanya. Karena mesin regex JVM/Android tidak responsif terhadap cancellation di tengah catastrophic backtracking, thread yang timeout tetap jalan di background (ini SUDAH didokumentasikan sejak awal) — tapi karena cuma 1 thread yang di-reuse, itu berarti SATU pola regex bermasalah memblokir SEMUA permintaan Cari & Ganti Regex berikutnya selamanya (timeout terus tanpa pernah benar-benar jalan) sampai app di-restart — ini bug nyata yang belum tercatat sebelumnya, bukan cuma keterbatasan. Diganti ke `Executors.newCachedThreadPool()` — tetap terisolasi dari `Dispatchers.Default`, tapi thread yang macet ditinggalkan sendirian tanpa memblokir panggilan berikutnya.
+    - **Bug nyata (diperbaiki):** `BottomFileBar` — item menu dengan `available=false` ("Segera Hadir") sebelumnya tetap memanggil `onClick()` walau tidak ada guard (untungnya belum bermanifestasi karena semua item saat ini `available=true`). Ditambah `enabled = item.available` pada `DropdownMenuItem` + guard eksplisit di dalam `onClick`.
+    - **Ditinjau, SENGAJA TIDAK diubah:** `ExternalFileUtils.localNameFor` pakai hash 32-bit (`String.hashCode()`) dari Uri — risiko tabrakan kecil tapi ada. Sempat diganti ke SHA-256 lalu **dibatalkan**: mengganti algoritma hash membuat berkas yang sudah diimpor sebelumnya (nama lokal format lama) tidak lagi ter-mapping ke salinan lokalnya sendiri saat dibuka ulang lewat "Buka Dengan" — menghasilkan duplikat nyata bagi pengguna lama. Untuk risiko tabrakan 32-bit yang di praktik penggunaan nyata nyaris tidak pernah terjadi, regresi itu tidak sepadan — dibiarkan seperti semula, dicatat sebagai keterbatasan yang diterima.
+    - **Belum disentuh (menunggu Batch 2 & 3):** semua fitur tampilan (font, tema) dan Info Berkas (word/char count) — sengaja tidak dicampur dengan perbaikan bug di batch yang sama.
+
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
 - **Concurrency:** `Dispatchers.IO.limitedParallelism(1)` khusus untuk write (urutan auto-save terjamin, no race). `Dispatchers.Default.limitedParallelism(1)` khusus untuk regex (isolasi agar pola "meledak" tidak menyita thread pool lain).
@@ -73,3 +81,4 @@ app/src/main/java/com/promptnotepad/app/
 ## Keputusan Ditolak (dengan alasan, jangan diusulkan ulang tanpa alasan baru)
 - **Auto-save timer-debounce (3 detik):** ditolak. Auto-save instan async yang sudah ada lebih aman (jendela data-loss lebih kecil) dan tidak membekukan UI — timer hanya akan mengurangi frekuensi tulis dengan trade-off resiko kehilangan data lebih besar.
 - **Migrasi SAF/Uri penuh (DocumentFile, folder picker, dst):** ditolak. Premis "scoped storage butuh SAF" tidak berlaku untuk app ini karena penyimpanan sudah `filesDir` (internal, tidak kena scoped storage). Diganti dengan fitur "Buka Dengan" (intent-filter + impor/sinkron Uri) yang benar-benar menjawab kebutuhan user tanpa migrasi arsitektur.
+- **Ganti algoritma hash nama file lokal impor eksternal (mis. ke SHA-256):** ditolak (v1.4.2). Risiko tabrakan hash 32-bit saat ini memang ada secara teori, tapi mengganti algoritmanya membuat berkas yang sudah diimpor sebelumnya (nama lokal format lama) tidak lagi ter-mapping ke salinan lokalnya sendiri — duplikat nyata bagi pengguna lama, regresi yang tidak sepadan dengan risiko teoretis yang sangat kecil di praktik.

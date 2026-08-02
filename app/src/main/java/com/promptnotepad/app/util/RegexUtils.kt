@@ -1,8 +1,9 @@
 package com.promptnotepad.app.util
 
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.Executors
 
 sealed class RegexOutcome {
     data class Success(val text: String) : RegexOutcome()
@@ -11,10 +12,23 @@ sealed class RegexOutcome {
 
 object RegexUtils {
 
-    /** Dispatcher tersendiri (1 thread) agar pola regex yang "meledak" (catastrophic
-     * backtracking) tidak ikut menyita thread pool Dispatchers.Default yang dipakai
-     * bagian lain aplikasi. */
-    private val regexDispatcher = Dispatchers.Default.limitedParallelism(1)
+    /** Dispatcher tersendiri agar pola regex yang "meledak" (catastrophic backtracking)
+     * tidak ikut menyita thread pool Dispatchers.Default yang dipakai bagian lain aplikasi.
+     *
+     * ⚠️ [Perbaikan bug — audit v1.4.2] Sebelumnya dispatcher ini pakai
+     * `Dispatchers.Default.limitedParallelism(1)` (1 thread yang dipakai ulang terus).
+     * Karena mesin regex JVM/Android tidak responsif terhadap cancellation di tengah
+     * backtracking, thread pekerja pada pola yang timeout TETAP jalan di background
+     * (sudah didokumentasikan) — tapi dengan hanya 1 thread yang dipakai ulang, itu
+     * berarti thread satu-satunya itu macet SELAMANYA dan SEMUA permintaan Cari & Ganti
+     * Regex berikutnya ikut antre di belakangnya (timeout terus tanpa pernah benar-benar
+     * jalan) sampai aplikasi di-restart. Diganti ke cached thread pool: tetap terisolasi
+     * dari Dispatchers.Default, tapi satu thread yang macet dari pola bermasalah
+     * ditinggalkan sendirian (leaked, bukan dibunuh paksa — Kotlin/JVM tidak punya cara
+     * aman menghentikan paksa thread yang sedang backtracking) sementara panggilan
+     * berikutnya mendapat thread baru dan tetap responsif. */
+    private val regexExecutor = Executors.newCachedThreadPool()
+    private val regexDispatcher = regexExecutor.asCoroutineDispatcher()
     private const val REGEX_TIMEOUT_MS = 2000L
 
     /**

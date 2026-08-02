@@ -33,7 +33,15 @@ object ExternalFileUtils {
     }
 
     /** Nama file lokal deterministik dari Uri, agar membuka berkas eksternal yang sama
-     * berulang kali ter-mapping ke satu salinan lokal yang sama (bukan duplikat tiap kali). */
+     * berulang kali ter-mapping ke satu salinan lokal yang sama (bukan duplikat tiap kali).
+     *
+     * 📝 [Ditinjau saat audit v1.4.2, TIDAK diubah] Hash 32-bit (`String.hashCode()`) di
+     * bawah ini secara teori berisiko tabrakan antar-Uri berbeda, tapi mengganti algoritma
+     * hash akan membuat berkas yang SUDAH diimpor sebelumnya (nama lokal format lama) tidak
+     * lagi ter-mapping ke salinan lokalnya sendiri saat dibuka ulang — menghasilkan duplikat
+     * nyata bagi pengguna lama. Untuk risiko tabrakan 32-bit yang di praktiknya (jumlah
+     * berkas yang diimpor satu pengguna) nyaris tidak pernah terjadi, regresi itu tidak
+     * sepadan. Dibiarkan seperti semula — dicatat sebagai keterbatasan yang diterima. */
     private fun localNameFor(uri: Uri, originalName: String): String {
         val hash = uri.toString().hashCode().toUInt().toString(16).take(8)
         val safeName = originalName.ifBlank { "Impor.txt" }
