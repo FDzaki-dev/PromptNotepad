@@ -9,12 +9,13 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.promptnotepad.app.model.TabItem
 import com.promptnotepad.app.state.TabManager
 import com.promptnotepad.app.ui.BottomFileBar
+import com.promptnotepad.app.ui.FileListScreen
 import com.promptnotepad.app.ui.MarkdownViewer
 import com.promptnotepad.app.ui.OverflowMenuItem
 import com.promptnotepad.app.ui.PremiumLayout
@@ -58,6 +60,7 @@ import com.promptnotepad.app.ui.theme.LocalAppColors
 import com.promptnotepad.app.ui.theme.PromptNotepadTheme
 import com.promptnotepad.app.util.ExternalFileUtils
 import com.promptnotepad.app.util.FileUtils
+import com.promptnotepad.app.util.PinStore
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
 import com.promptnotepad.app.util.SettingsStore
@@ -154,19 +157,18 @@ private fun PromptNotepadApp(
     val errorMessage = "Gagal menyimpan/membaca berkas. Perubahan terakhir mungkin belum tersimpan."
     val context = LocalContext.current
 
-    // QuickNote: tab coretan instan yang otomatis terbuka saat aplikasi dijalankan
-    // (hanya jika belum ada tab yang dipulihkan dari saved-instance-state).
-    LaunchedEffect(Unit) {
-        if (tabManager.openTabs.isEmpty()) {
-            val quickNoteFile = File(notesDir, "QuickNote.txt")
-            if (!quickNoteFile.exists()) {
-                val created = FileUtils.writeFile(quickNoteFile, "")
-                if (created.isFailure) {
-                    snackbarHostState.showSnackbar(errorMessage)
-                }
-            }
-            tabManager.openFileInTab(quickNoteFile)
-        }
+    // Batch A (redesain ala TxtPad+): app TIDAK LAGI otomatis membuka QuickNote
+    // saat dijalankan — pengguna sekarang mendarat di Daftar File dulu (lihat
+    // showFileList di bawah), sama seperti alur TxtPad+. QuickNote.txt lama
+    // (jika masih ada dari versi sebelumnya) tetap tampil sebagai berkas biasa
+    // di daftar, tidak dihapus, hanya tidak lagi auto-terbuka.
+    val pinStore = remember { PinStore(context) }
+    var showFileList by rememberSaveable { mutableStateOf(true) }
+    var fileListRefreshTrigger by remember { mutableStateOf(0) }
+
+    fun returnToFileList() {
+        fileListRefreshTrigger++
+        showFileList = true
     }
 
     // "Buka Dengan": berkas eksternal dari Intent VIEW/EDIT (file manager/app lain)
@@ -187,13 +189,13 @@ private fun PromptNotepadApp(
         val result = ExternalFileUtils.importFromUri(context, uri, notesDir)
         result.onSuccess { localFile ->
             tabManager.openFileInTab(localFile, sourceUri = uri)
+            showFileList = false
         }.onFailure {
             snackbarHostState.showSnackbar(it.message ?: "Gagal membuka berkas eksternal.")
         }
         intentState.value = null
     }
 
-    var showFileList by remember { mutableStateOf(false) }
     var showRegexDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var previewMode by remember(tabManager.activeTabIndex.value) { mutableStateOf(false) }
@@ -216,10 +218,46 @@ private fun PromptNotepadApp(
     val isMarkdownFile = activeTab?.file?.extension == "md"
     val colors = LocalAppColors.current
 
+    // Tombol back sistem: kalau sedang di editor, kembali ke Daftar File dulu
+    // (ala TxtPad+) — bukan langsung keluar app. Kalau sudah di Daftar File,
+    // biarkan perilaku back bawaan (keluar app) yang berjalan.
+    BackHandler(enabled = !showFileList) {
+        returnToFileList()
+    }
+
+    if (showFileList) {
+        FileListScreen(
+            notesDir = notesDir,
+            pinStore = pinStore,
+            refreshTrigger = fileListRefreshTrigger,
+            onOpenFile = { file ->
+                tabManager.openFileInTab(file)
+                showFileList = false
+            },
+            onCreateNewFile = {
+                coroutineScope.launch {
+                    val result = FileUtils.createNewFile(notesDir, "Catatan")
+                    result.onSuccess { newFile ->
+                        tabManager.openFileInTab(newFile)
+                        showFileList = false
+                    }.onFailure {
+                        snackbarHostState.showSnackbar(errorMessage)
+                    }
+                }
+            }
+        )
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("PromptNotepad", color = colors.textPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = { returnToFileList() }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Kembali ke Daftar File", tint = colors.textPrimary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface)
             )
         },
@@ -238,7 +276,7 @@ private fun PromptNotepadApp(
                 snackbarHostState = snackbarHostState,
                 errorMessage = errorMessage,
                 regexRequest = regexRequest,
-                onBrowseFiles = { showFileList = true },
+                onBrowseFiles = { returnToFileList() },
                 onOpenRegexDialog = { showRegexDialog = true },
                 onOpenSettingsDialog = { showSettingsDialog = true },
                 onCloseTab = { index ->
@@ -247,21 +285,11 @@ private fun PromptNotepadApp(
                         pendingCloseIndex = index
                     } else {
                         tabManager.closeTab(index)
+                        if (tabManager.openTabs.isEmpty()) returnToFileList()
                     }
                 }
             )
         }
-    }
-
-    if (showFileList) {
-        FileListDialog(
-            notesDir = notesDir,
-            onDismiss = { showFileList = false },
-            onFileSelected = { file ->
-                tabManager.openFileInTab(file)
-                showFileList = false
-            }
-        )
     }
 
     if (showRegexDialog) {
@@ -698,38 +726,6 @@ private fun FileInfoDialog(tab: TabItem, onDismiss: () -> Unit) {
                 Text("Terakhir diubah: $modifiedText")
                 if (tab.sourceUri != null) {
                     Text("Tersinkron dari berkas eksternal (\"Buka Dengan\")")
-                }
-            }
-        }
-    )
-}
-
-@Composable
-private fun FileListDialog(
-    notesDir: File,
-    onDismiss: () -> Unit,
-    onFileSelected: (File) -> Unit
-) {
-    var files by remember { mutableStateOf<List<File>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        files = FileUtils.listTextFiles(notesDir).getOrDefault(emptyList())
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } },
-        title = { Text("Berkas Tersimpan") },
-        text = {
-            LazyColumn {
-                items(files) { file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        TextButton(onClick = { onFileSelected(file) }) {
-                            Text(file.name)
-                        }
-                    }
                 }
             }
         }

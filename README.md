@@ -2,7 +2,9 @@
 
 Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa database eksternal — file mentah `.txt`/`.md` disimpan langsung di penyimpanan internal aplikasi.
 
-**Versi saat ini:** `1.5.0` (`versionCode 10`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+**Versi saat ini:** `1.6.0` (`versionCode 11`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+
+> **Catatan arah proyek:** sejak v1.6.0, tujuan utama adalah membuat UI/UX/layout & cara tangani berkas sedekat mungkin dengan app pembanding **TxtPad+** (termasuk warna/spacing). Fitur non-TxtPad+ (multi-tab, Markdown viewer, highlight Todo.txt, Cari & Ganti Regex) tetap ada tapi bukan prioritas.
 
 ## Fitur
 
@@ -58,6 +60,13 @@ Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa 
 - Ukuran font editor bisa diatur (stepper +/−, 11sp–26sp) lewat menu ⋮ → "Pengaturan Tampilan"
 - Toggle tema terang/gelap (default tetap gelap) — pengaturan tersimpan otomatis, diterapkan langsung tanpa restart
 
+### Daftar File & Pin (sejak v1.6.0 — redesain ala TxtPad+)
+- **Layar utama sekarang Daftar File**, bukan langsung ke editor — daftar semua catatan dengan pratinjau baris pertama & tanggal ubah terakhir
+- **Pin catatan penting** — selalu tampil di bagian paling atas daftar
+- Pencarian nama berkas langsung dari layar utama
+- Tombol (+) untuk membuat catatan baru dari layar utama
+- Tombol back sistem & tombol panah di editor kembali ke Daftar File (bukan langsung keluar app)
+
 ## Build lokal
 ```
 ./gradlew assembleRelease
@@ -67,19 +76,23 @@ Signing config release membaca dari `keystore.properties` (lokal) atau environme
 ## Struktur Proyek
 ```
 app/src/main/java/com/promptnotepad/app/
-├── MainActivity.kt        # Entry point, wiring seluruh state & UI, handle Intent VIEW/EDIT,
-│                           # baca/tulis SettingsStore, dialog Pengaturan Tampilan
+├── MainActivity.kt        # Entry point, navigasi Daftar File <-> Editor, wiring state & UI,
+│                           # handle Intent VIEW/EDIT, baca/tulis SettingsStore, dialog Pengaturan
 ├── model/                 # TabItem (+ isDirty, sourceUri), TodoTask
 ├── state/                 # TabManager (tab list, active index, eviction)
-├── ui/                    # TextEditor, TabBar, ShortcutBar, PremiumLayout,
-│                           # BottomFileBar (menu ⋮), MarkdownViewer,
+├── ui/                    # FileListScreen (layar utama, ala TxtPad+), TextEditor, TabBar,
+│                           # ShortcutBar, PremiumLayout, BottomFileBar (menu ⋮), MarkdownViewer,
 │                           # TodoHighlighter, theme/ (AppColors, LocalAppColors dinamis)
-└── util/                  # FileUtils (I/O async), RegexUtils (async+timeout),
+└── util/                  # FileUtils (I/O async + readSnippet), RegexUtils (async+timeout),
                             # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser,
-                            # SettingsStore (font size + mode tema)
+                            # SettingsStore (font size + mode tema), PinStore (berkas di-pin)
 ```
 
-## Roadmap (rencana disepakati — dikerjakan berurutan per batch)
-- **Batch 3:** Info Berkas lengkap — tambah jumlah kata & karakter
+## Roadmap (rencana — dikerjakan berurutan per batch)
+- **Batch B:** Tags (folder virtual) — buat tag, assign ke berkas, filter Daftar File per tag
+- **Batch C:** penghalusan visual lanjutan (kalau ada referensi visual TxtPad+ yang lebih presisi)
+- Info Berkas lengkap — tambah jumlah kata & karakter
+- Cari berdasarkan isi file (baru ada cari nama file)
+- Tema "Ikuti Sistem"
 - Hardware keyboard shortcuts (`onKeyEvent`) — belum dijadwalkan ke batch tertentu
 

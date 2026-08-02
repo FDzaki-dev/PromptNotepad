@@ -79,4 +79,27 @@ object FileUtils {
                 candidate
             }
         }
+
+    /**
+     * Pratinjau singkat isi berkas untuk baris kedua di Daftar File (Batch A, ala
+     * TxtPad+). Hanya membaca maksimum 500 byte pertama (bukan seluruh isi file)
+     * agar tetap ringan walau dipanggil untuk banyak berkas sekaligus di list;
+     * baris kosong di awal dilewati, newline diganti spasi agar tetap satu baris.
+     */
+    suspend fun readSnippet(file: File): String = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!file.exists() || file.length() == 0L) return@runCatching ""
+            file.inputStream().use { stream ->
+                val buffer = ByteArray(500)
+                val read = stream.read(buffer)
+                if (read <= 0) "" else {
+                    String(buffer, 0, read, charset)
+                        .lineSequence()
+                        .firstOrNull { it.isNotBlank() }
+                        ?.trim()
+                        ?: ""
+                }
+            }
+        }.getOrDefault("")
+    }
 }

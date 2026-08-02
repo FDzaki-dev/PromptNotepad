@@ -1,5 +1,25 @@
 # Changelog — PromptNotepad
 
+## [1.6.0] — PIVOT ARAH PROYEK: Batch A, redesain ala TxtPad+ (Daftar File + Pin)
+### Konteks
+- User menghentikan penambahan fitur baru. Tujuan sekarang: UI/UX/layout & cara tangani berkas dibuat SEDEKAT MUNGKIN meniru app pembanding TxtPad+ (termasuk warna/spacing). Fitur lama yang tidak ada di TxtPad+ (multi-tab, Markdown viewer, highlight Todo.txt, Cari & Ganti Regex) TETAP ADA, hanya bukan prioritas/tidak disorot di alur utama.
+- Dipecah jadi beberapa batch kecil berurutan. Ini **Batch A**: layar utama Daftar File + Pin. Batch berikutnya: Tags (folder virtual) dan penghalusan visual lanjutan.
+### Diubah (perilaku, bukan sekadar tampilan)
+- **Layar utama app sekarang Daftar File** (`FileListScreen`, baru) — bukan langsung membuka QuickNote/editor seperti sebelumnya. Pengguna melihat daftar dulu, baru memilih atau membuat catatan, sama seperti alur TxtPad+.
+- Auto-buka QuickNote saat aplikasi dijalankan **dihapus** (bertentangan langsung dengan keputusan "layar utama = daftar file"). Berkas `QuickNote.txt` lama (jika masih ada dari versi sebelumnya) TIDAK dihapus, tetap muncul sebagai berkas biasa di daftar.
+- Tombol back sistem Android: dari editor kembali ke Daftar File dulu (ala TxtPad+), bukan langsung keluar app.
+- TopAppBar editor sekarang punya tombol panah kembali ke Daftar File (menggantikan peran ikon "Buka Berkas" lama di `BottomFileBar`, yang sekarang juga mengarah ke Daftar File, bukan dialog kecil).
+### Ditambahkan
+- **Pin berkas**: ikon pin di tiap baris Daftar File, berkas yang di-pin selalu tampil di bagian paling atas. Dipersist lewat `PinStore.kt` (baru, SharedPreferences, pola sama seperti `SettingsStore`).
+- Pratinjau baris pertama tiap berkas di Daftar File (`FileUtils.readSnippet`, baca maks. 500 byte pertama saja per berkas, ringan).
+- Pencarian nama berkas langsung di Daftar File (ikon kaca pembesar di TopAppBar).
+- FAB (+) untuk membuat catatan baru langsung dari Daftar File.
+### Dihapus (superseded, bukan regresi)
+- `FileListDialog` (dialog kecil "Berkas Tersimpan" di dalam editor) — sepenuhnya digantikan `FileListScreen` yang jauh lebih lengkap (pratinjau, pin, pencarian). Tidak ada fungsi yang hilang, hanya dipindah & diperluas.
+### Keterbatasan yang didokumentasikan
+- "Sedekat mungkin" secara visual didasarkan pada deskripsi fitur resmi TxtPad+ di Play Store (dicek 2 Agu 2026) — BUKAN pencocokan piksel-demi-piksel terhadap screenshot asli, karena alat pencarian gambar yang tersedia tidak berhasil menampilkan screenshot asli app tersebut secara andal. Warna/spacing memakai palet `AppColors` yang sudah ada (Batch 2), disusun mengikuti pola umum app notepad minimalis (list + FAB + search), bukan menyalin aset visual TxtPad+ secara literal (berpotensi masalah hak cipta aset).
+- Tags (folder virtual) BELUM dikerjakan — direncanakan sebagai batch terpisah berikutnya, sesuai kesepakatan user.
+
 ## [1.5.0] — Batch 2: Pengaturan Tampilan (font size + tema terang/gelap)
 ### Ditambahkan
 - **Ukuran font editor bisa diatur** (stepper +/− di dialog "Pengaturan Tampilan", rentang 11sp–26sp, langkah 1sp) — dipersist lewat `SettingsStore` (SharedPreferences), diterapkan langsung (live) tanpa restart app

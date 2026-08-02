@@ -12,6 +12,7 @@ app/src/main/java/com/promptnotepad/app/model/TabItem.kt
 app/src/main/java/com/promptnotepad/app/model/TodoTask.kt
 app/src/main/java/com/promptnotepad/app/state/TabManager.kt
 app/src/main/java/com/promptnotepad/app/ui/BottomFileBar.kt
+app/src/main/java/com/promptnotepad/app/ui/FileListScreen.kt
 app/src/main/java/com/promptnotepad/app/ui/MarkdownViewer.kt
 app/src/main/java/com/promptnotepad/app/ui/PremiumLayout.kt
 app/src/main/java/com/promptnotepad/app/ui/ShortcutBar.kt
@@ -22,6 +23,7 @@ app/src/main/java/com/promptnotepad/app/ui/theme/Color.kt
 app/src/main/java/com/promptnotepad/app/ui/theme/Theme.kt
 app/src/main/java/com/promptnotepad/app/util/ExternalFileUtils.kt
 app/src/main/java/com/promptnotepad/app/util/FileUtils.kt
+app/src/main/java/com/promptnotepad/app/util/PinStore.kt
 app/src/main/java/com/promptnotepad/app/util/RegexUtils.kt
 app/src/main/java/com/promptnotepad/app/util/SettingsStore.kt
 app/src/main/java/com/promptnotepad/app/util/TodoParser.kt

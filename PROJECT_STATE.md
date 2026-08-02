@@ -4,10 +4,13 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 10` / `versionName "1.5.0"`
-- **Batch terakhir selesai:** Batch 2 — Pengaturan Tampilan (font size + toggle tema terang/gelap), lihat insiden #13
-- **Batch berikutnya (rencana disepakati user — kerjakan berurutan, jangan sekaligus):**
-  1. **Batch 3 — Info Berkas lengkap:** tambah jumlah kata & karakter (saat ini baru ukuran file + tanggal)
+- **Versi:** `versionCode 11` / `versionName "1.6.0"`
+- **⚠️ PIVOT ARAH PROYEK (setelah v1.5.0):** User menghentikan penambahan fitur baru. Tujuan sekarang: UI/UX/layout & cara tangani berkas dibuat SEDEKAT MUNGKIN meniru app pembanding "TxtPad+" (termasuk warna/spacing, bukan cuma pola UX). Detail keputusan & rasional lengkap ada di insiden #14 (baca sebelum lanjut kerja apa pun terkait redesain).
+- **Batch terakhir selesai:** Batch A — layar utama Daftar File + Pin (lihat insiden #14)
+- **Batch berikutnya (rencana, kerjakan berurutan):**
+  1. **Batch B — Tags:** folder virtual, buat tag, assign ke berkas, filter Daftar File per tag
+  2. **Batch C — Penghalusan visual lanjutan:** jika user berhasil bagikan screenshot/referensi visual TxtPad+ yang lebih presisi, sesuaikan warna/spacing `AppColors` & `FileListScreen` supaya makin dekat (saat ini baru berdasar deskripsi fitur teks, bukan pencocokan piksel)
+  3. Batch 3 lama (Info Berkas: jumlah kata & karakter) — masih relevan, TxtPad+ juga punya fitur ini ("TXT File Info: jumlah kata, karakter, ukuran")
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -67,6 +70,19 @@
     - **Di luar Batch 2, dikerjakan atas permintaan eksplisit user (bukan scope creep):** penamaan file APK output (`app/build.gradle`, blok `applicationVariants.all`) dan nama artifact GitHub Actions (`build.yml`) dibuat dinamis mengikuti `versionName` + short commit SHA (env `ANDROID_COMMIT_SHA` diisi CI dari `github.sha`, fallback `git rev-parse --short HEAD` untuk build lokal/Termux, `"nogit"` sebagai jaring pengaman terakhir) — sebelumnya nama file/artifact statis sehingga sulit ditelusuri balik ke commit persisnya.
     - **Keterbatasan yang didokumentasikan (bukan bug tersembunyi):** status bar sistem Android (di luar Compose, diatur `android:theme` di `AndroidManifest.xml`) tidak ikut berubah warna saat tema di-toggle — `Theme.Material.NoActionBar` bawaan dipertahankan apa adanya (mengubahnya butuh setup edge-to-edge/status-bar-color terpisah, di luar scope Batch 2 yang disepakati hanya "font size + toggle tema"). Tidak ada toolchain Gradle/Android SDK di lingkungan pembuatan ini untuk build asli — verifikasi dilakukan lewat pengecekan keseimbangan kurung di seluruh 18 file `.kt` (otomatis, semua seimbang), audit manual tiap import yang ditambah/dihapus benar-benar dipakai/tidak dipakai lagi, dan penelusuran manual bahwa tidak ada referensi ke konstanta warna lama yang tertinggal di file yang sudah dimigrasi ke `LocalAppColors`.
 
+14. **[PIVOT ARAH PROYEK + Batch A — v1.6.0]** Setelah v1.5.0, user menyatakan: hentikan penambahan fitur, yang benar-benar diinginkan adalah UI/UX/layout & cara tangani berkas 100% sedekat mungkin ke app pembanding "TxtPad+". Sebelum mengerjakan (sesuai aturan "Analisis Dampak Arsitektur" — wajib tanya dulu untuk perubahan besar), ditanyakan 3 hal & dijawab user:
+    - Fitur non-TxtPad+ (multi-tab, Markdown viewer, highlight Todo.txt, Cari & Ganti Regex): **TETAP ADA**, bukan prioritas/disembunyikan — bukan dihapus.
+    - Tingkat "identik": **sedekat mungkin TERMASUK warna/spacing**, bukan cuma pola UX.
+    - Layar utama jadi Daftar File + Pin + Tags: **Ya, semua**.
+    - **Riset dulu sebelum kode:** dicek Play Store TxtPad+ (listing `vladyslavpohrebniakov.txtpadplus`, update terakhir 24 Jul 2026) — fitur real saat ini: layar utama daftar file, Pin, Tags (folder virtual), cari nama/isi file, Find in File, Undo/Redo, font monospace opsional, ukuran font, tema Terang/Gelap/Ikuti Sistem, share, cetak, info file (kata/karakter/ukuran), scroll memory, layout tablet. **Percobaan mengambil screenshot asli via image_search/web_fetch GAGAL** (tidak bisa fetch gambar langsung, hasil image_search tidak relevan) — jadi implementasi visual didasarkan pada deskripsi fitur teks + pola umum notepad minimalis, BUKAN pencocokan piksel-demi-piksel. User perlu tahu ini kalau mengharapkan kemiripan visual persis.
+    - **Implementasi Batch A** (scope sengaja dipersempit dari permintaan penuh "daftar file + Pin + Tags" jadi "daftar file + Pin" dulu — Tags dipisah ke Batch B, sesuai aturan "Pecah Perubahan Besar"):
+      - `ui/FileListScreen.kt` (baru): layar utama, LazyColumn berkas (pratinjau baris pertama + tanggal + ikon pin), search bar di TopAppBar, FAB (+) buat catatan baru, berkas ter-pin selalu di atas.
+      - `util/PinStore.kt` (baru): SharedPreferences Set\<String\> path yang di-pin, pola sama seperti `SettingsStore`.
+      - `util/FileUtils.kt`: tambah `readSnippet()` (baca maks. 500 byte pertama per berkas, bukan seluruh isi — supaya ringan dipanggil untuk banyak berkas sekaligus di list).
+      - `MainActivity.kt`: **auto-buka QuickNote saat app dijalankan DIHAPUS** (bertentangan langsung dengan "layar utama = daftar file" — ini perubahan perilaku yang disengaja, bukan regresi; `QuickNote.txt` lama TIDAK dihapus, cuma tidak lagi auto-terbuka). Tambah state navigasi `showFileList` (default `true`, `rememberSaveable`) + `BackHandler` (back sistem dari editor kembali ke Daftar File dulu, bukan langsung keluar app). `FileListDialog` (dialog kecil lama di dalam editor) **dihapus** — fungsinya sepenuhnya digantikan `FileListScreen` yang lebih lengkap (bukan kehilangan fungsi, hanya dipindah & diperluas); tombol "Buka Berkas" di `BottomFileBar` & tombol back di TopAppBar editor sekarang sama-sama mengarah ke `FileListScreen`.
+      - **Circuit breaker file:** 18 file lama, +2 baru (`FileListScreen.kt`, `PinStore.kt`) = 20 total, −1 fungsi dihapus (`FileListDialog`, superseded) — bukan regresi, didokumentasikan eksplisit.
+    - **Belum dikerjakan (Batch B/C):** Tags (folder virtual), penghalusan visual lanjutan kalau ada referensi visual lebih presisi dari user, Find in File berbasis nama TAMBAHAN cari isi file (TxtPad+ juga bisa cari di dalam isi, PromptNotepad baru cari nama file), tema "Ikuti Sistem" (baru ada Terang/Gelap manual), scroll memory, layout khusus tablet.
+
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
 - **Concurrency:** `Dispatchers.IO.limitedParallelism(1)` khusus untuk write (urutan auto-save terjamin, no race). `Dispatchers.Default.limitedParallelism(1)` khusus untuk regex (isolasi agar pola "meledak" tidak menyita thread pool lain).
@@ -76,21 +92,25 @@
 ## Struktur Modul Singkat
 ```
 app/src/main/java/com/promptnotepad/app/
-├── MainActivity.kt        # Entry point, wiring seluruh state & UI, handle Intent VIEW/EDIT,
-│                           # baca/tulis SettingsStore, dialog Pengaturan Tampilan
+├── MainActivity.kt        # Entry point, navigasi Daftar File <-> Editor, wiring state & UI,
+│                           # handle Intent VIEW/EDIT, baca/tulis SettingsStore, dialog Pengaturan
 ├── model/                 # TabItem (+ isDirty, sourceUri), TodoTask
 ├── state/                 # TabManager (tab list, active index, eviction)
-├── ui/                    # TextEditor, TabBar, ShortcutBar, PremiumLayout,
-│                           # BottomFileBar (menu ⋮), MarkdownViewer,
+├── ui/                    # FileListScreen (layar utama, ala TxtPad+), TextEditor, TabBar,
+│                           # ShortcutBar, PremiumLayout, BottomFileBar (menu ⋮), MarkdownViewer,
 │                           # TodoHighlighter, theme/ (AppColors, LocalAppColors dinamis)
-└── util/                  # FileUtils (I/O async), RegexUtils (async+timeout),
+└── util/                  # FileUtils (I/O async + readSnippet), RegexUtils (async+timeout),
                             # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser,
-                            # SettingsStore (font size + mode tema, SharedPreferences)
+                            # SettingsStore (font size + mode tema), PinStore (berkas di-pin)
 ```
 
 ## Belum Dikerjakan (menunggu instruksi)
-- Batch 3: Info Berkas lengkap (tambah jumlah kata & karakter)
-- Hardware keyboard shortcuts (`onKeyEvent`) — item lama dari evaluasi 14 item awal, belum pernah dijadwalkan ulang sejak scope proyek dibuka kembali di v1.4.0
+- Batch B: Tags (folder virtual) — buat tag, assign ke berkas, filter Daftar File per tag
+- Batch C: penghalusan visual lanjutan (kalau user bisa bagikan referensi visual TxtPad+ yang lebih presisi dari sekadar deskripsi fitur teks)
+- Batch 3 lama: Info Berkas lengkap (tambah jumlah kata & karakter) — TxtPad+ juga punya ini
+- Cari BERDASARKAN ISI file (baru ada cari nama file) — fitur "Advanced File Search" TxtPad+
+- Tema "Ikuti Sistem" (baru ada toggle manual Terang/Gelap)
+- Hardware keyboard shortcuts (`onKeyEvent`) — item lama, belum dijadwalkan ulang
 - Warna highlight todo.txt untuk tag proyek (`+tag`, biru `0xFF5CA8FF`) belum theme-aware seperti prioritas/konteks (lihat insiden #13) — kontras saat ini masih diterima di kedua tema, belum ada laporan masalah
 
 ## Keputusan Ditolak (dengan alasan, jangan diusulkan ulang tanpa alasan baru)
