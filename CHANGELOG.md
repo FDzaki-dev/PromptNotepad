@@ -1,5 +1,9 @@
 # Changelog — PromptNotepad
 
+## [1.4.3] — Hotfix build gagal (v1.4.2)
+### Diperbaiki
+- ⚠️ **Build CI gagal:** `BottomFileBar.kt` memakai `return@onClick` yang tidak valid (lambda `onClick = { ... }` adalah argumen bernama, bukan trailing lambda, jadi tidak dapat label implisit). Diganti ke struktur `if (item.available) { ... }` — guard yang dimaksud (mencegah item menu terkunci menjalankan aksi) tetap sama persis.
+
 ## [1.4.2] — Audit kecacatan logika, Batch 1 (perbaikan bug)
 ### Diperbaiki
 - **Regex dispatcher macet permanen:** `RegexUtils` sebelumnya memakai 1 thread yang dipakai ulang selamanya (`Dispatchers.Default.limitedParallelism(1)`) — satu pola regex bermasalah (catastrophic backtracking) yang timeout akan memblokir SEMUA permintaan Cari & Ganti Regex berikutnya sampai app di-restart. Diganti ke cached thread pool terisolasi.

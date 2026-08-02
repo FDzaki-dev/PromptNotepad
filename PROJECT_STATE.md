@@ -4,8 +4,8 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 8` / `versionName "1.4.2"`
-- **Batch terakhir selesai:** Batch 1 dari rencana "Implementasikan semua fitur TxtPad+ + audit kecacatan logika" — 2 bug hasil audit diperbaiki (lihat insiden #11)
+- **Versi:** `versionCode 9` / `versionName "1.4.3"`
+- **Batch terakhir selesai:** Hotfix build gagal dari v1.4.2 (lihat insiden #12) — Batch 1 (2 bug audit) kini benar-benar selesai & lolos compile
 - **Batch berikutnya (rencana disepakati user — kerjakan berurutan, jangan sekaligus):**
   1. **Batch 2 — Pengaturan Tampilan:** ukuran font bisa diatur + toggle tema terang/gelap (default TETAP gelap, terang jadi opsi)
   2. **Batch 3 — Info Berkas lengkap:** tambah jumlah kata & karakter (saat ini baru ukuran file + tanggal)
@@ -55,6 +55,8 @@
     - **Bug nyata (diperbaiki):** `BottomFileBar` — item menu dengan `available=false` ("Segera Hadir") sebelumnya tetap memanggil `onClick()` walau tidak ada guard (untungnya belum bermanifestasi karena semua item saat ini `available=true`). Ditambah `enabled = item.available` pada `DropdownMenuItem` + guard eksplisit di dalam `onClick`.
     - **Ditinjau, SENGAJA TIDAK diubah:** `ExternalFileUtils.localNameFor` pakai hash 32-bit (`String.hashCode()`) dari Uri — risiko tabrakan kecil tapi ada. Sempat diganti ke SHA-256 lalu **dibatalkan**: mengganti algoritma hash membuat berkas yang sudah diimpor sebelumnya (nama lokal format lama) tidak lagi ter-mapping ke salinan lokalnya sendiri saat dibuka ulang lewat "Buka Dengan" — menghasilkan duplikat nyata bagi pengguna lama. Untuk risiko tabrakan 32-bit yang di praktik penggunaan nyata nyaris tidak pernah terjadi, regresi itu tidak sepadan — dibiarkan seperti semula, dicatat sebagai keterbatasan yang diterima.
     - **Belum disentuh (menunggu Batch 2 & 3):** semua fitur tampilan (font, tema) dan Info Berkas (word/char count) — sengaja tidak dicampur dengan perbaikan bug di batch yang sama.
+
+12. **[Build gagal — v1.4.2, hotfix jadi v1.4.3]** ⚠️ CI (`compileReleaseKotlin`) gagal setelah push v1.4.2. Penyebab: perbaikan guard menu terkunci di `BottomFileBar.kt` (insiden #11) memakai `return@onClick` — label ini TIDAK valid karena lambda `onClick = { ... }` di situ adalah argumen bernama (named argument), bukan trailing lambda, sehingga tidak mendapat label implisit dari nama parameter. Kotlin compiler: `Unresolved reference: @onClick`. Diperbaiki dengan mengganti ke struktur `if (item.available) { ... }` tanpa non-local return — perilaku/guard yang dimaksud tetap sama persis, hanya cara penulisannya yang diperbaiki. User memberi tahu lewat log CI (`logs_83322824362.zip`) yang diunggah setelah push v1.4.2 gagal.
 
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.

@@ -106,9 +106,10 @@ fun BottomFileBar(
                             // terkunci ("Segera Hadir") tidak pernah benar-benar menjalankan
                             // aksi apa pun kalau suatu saat ada yang menambah item baru
                             // dengan available=false tanpa sadar konsekuensinya.
-                            if (!item.available) return@onClick
-                            menuExpanded = false
-                            item.onClick()
+                            if (item.available) {
+                                menuExpanded = false
+                                item.onClick()
+                            }
                         }
                     )
                 }
