@@ -17,10 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -29,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.promptnotepad.app.model.TabItem
 import com.promptnotepad.app.state.TabManager
 import com.promptnotepad.app.ui.BottomFileBar
@@ -50,15 +54,13 @@ import com.promptnotepad.app.ui.PremiumLayout
 import com.promptnotepad.app.ui.ShortcutBar
 import com.promptnotepad.app.ui.TextEditor
 import com.promptnotepad.app.ui.insertAtCursor
-import com.promptnotepad.app.ui.theme.DeepGray
-import com.promptnotepad.app.ui.theme.PremiumAccent
+import com.promptnotepad.app.ui.theme.LocalAppColors
 import com.promptnotepad.app.ui.theme.PromptNotepadTheme
-import com.promptnotepad.app.ui.theme.PureBlack
-import com.promptnotepad.app.ui.theme.TextPrimary
 import com.promptnotepad.app.util.ExternalFileUtils
 import com.promptnotepad.app.util.FileUtils
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
+import com.promptnotepad.app.util.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,8 +84,25 @@ class MainActivity : ComponentActivity() {
         currentIntentState.value = intent
 
         setContent {
-            PromptNotepadTheme {
-                PromptNotepadApp(notesDir = notesDir, intentState = currentIntentState)
+            val settingsStore = remember { SettingsStore(applicationContext) }
+            var isDarkTheme by remember { mutableStateOf(settingsStore.isDarkTheme()) }
+            var editorFontSizeSp by remember { mutableFloatStateOf(settingsStore.getFontSizeSp()) }
+
+            PromptNotepadTheme(darkTheme = isDarkTheme, editorFontSize = editorFontSizeSp.sp) {
+                PromptNotepadApp(
+                    notesDir = notesDir,
+                    intentState = currentIntentState,
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = { newValue ->
+                        isDarkTheme = newValue
+                        settingsStore.setDarkTheme(newValue)
+                    },
+                    editorFontSizeSp = editorFontSizeSp,
+                    onFontSizeChange = { newSize ->
+                        editorFontSizeSp = newSize
+                        settingsStore.setFontSizeSp(newSize)
+                    }
+                )
             }
         }
     }
@@ -121,7 +140,14 @@ private data class RegexRequest(val nonce: Int, val pattern: String, val replace
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>) {
+private fun PromptNotepadApp(
+    notesDir: File,
+    intentState: MutableState<Intent?>,
+    isDarkTheme: Boolean,
+    onToggleTheme: (Boolean) -> Unit,
+    editorFontSizeSp: Float,
+    onFontSizeChange: (Float) -> Unit
+) {
     val tabManager = rememberSaveable(saver = tabManagerSaver()) { TabManager() }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -169,6 +195,7 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
 
     var showFileList by remember { mutableStateOf(false) }
     var showRegexDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var previewMode by remember(tabManager.activeTabIndex.value) { mutableStateOf(false) }
     var pendingCloseIndex by remember { mutableStateOf<Int?>(null) }
     var regexRequest by remember { mutableStateOf<RegexRequest?>(null) }
@@ -187,16 +214,17 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
     // ikut recompose setiap kali pengguna mengetik atau menggerakkan kursor.
     val activeTab = tabManager.activeTab()
     val isMarkdownFile = activeTab?.file?.extension == "md"
+    val colors = LocalAppColors.current
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PromptNotepad", color = TextPrimary) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepGray)
+                title = { Text("PromptNotepad", color = colors.textPrimary) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = PureBlack
+        containerColor = colors.background
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             EditorSection(
@@ -212,6 +240,7 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
                 regexRequest = regexRequest,
                 onBrowseFiles = { showFileList = true },
                 onOpenRegexDialog = { showRegexDialog = true },
+                onOpenSettingsDialog = { showSettingsDialog = true },
                 onCloseTab = { index ->
                     val tab = tabManager.openTabs.getOrNull(index)
                     if (tab != null && tab.isDirty.value) {
@@ -242,6 +271,16 @@ private fun PromptNotepadApp(notesDir: File, intentState: MutableState<Intent?>)
                 regexRequest = RegexRequest((regexRequest?.nonce ?: 0) + 1, pattern, replacement)
                 showRegexDialog = false
             }
+        )
+    }
+
+    if (showSettingsDialog) {
+        DisplaySettingsDialog(
+            isDarkTheme = isDarkTheme,
+            onToggleTheme = onToggleTheme,
+            fontSizeSp = editorFontSizeSp,
+            onFontSizeChange = onFontSizeChange,
+            onDismiss = { showSettingsDialog = false }
         )
     }
 
@@ -283,6 +322,7 @@ private fun EditorSection(
     regexRequest: RegexRequest?,
     onBrowseFiles: () -> Unit,
     onOpenRegexDialog: () -> Unit,
+    onOpenSettingsDialog: () -> Unit,
     onCloseTab: (Int) -> Unit
 ) {
     val context = LocalContext.current
@@ -424,6 +464,7 @@ private fun EditorSection(
                             onClick = { if (activeTab != null) showFileInfoDialog = true }
                         )
                     )
+                    add(OverflowMenuItem(label = "Pengaturan Tampilan", onClick = onOpenSettingsDialog))
                 }
             )
         },
@@ -691,6 +732,78 @@ private fun FileListDialog(
                     }
                 }
             }
+        }
+    )
+}
+
+/**
+ * Dialog Pengaturan Tampilan (Batch 2): ukuran font editor (stepper +/-, batas
+ * [SettingsStore.MIN_FONT_SIZE_SP]..[SettingsStore.MAX_FONT_SIZE_SP]) dan toggle
+ * tema terang/gelap (default tetap gelap). Perubahan langsung diterapkan (live
+ * preview) dan dipersist lewat callback ke [SettingsStore] di pemanggil —
+ * dialog ini sendiri tidak menyentuh I/O.
+ */
+@Composable
+private fun DisplaySettingsDialog(
+    isDarkTheme: Boolean,
+    onToggleTheme: (Boolean) -> Unit,
+    fontSizeSp: Float,
+    onFontSizeChange: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan Tampilan") },
+        text = {
+            Column {
+                Text("Ukuran Font Editor", color = colors.textSecondary, fontSize = 13.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = {
+                        val newSize = (fontSizeSp - SettingsStore.FONT_SIZE_STEP_SP)
+                            .coerceIn(SettingsStore.MIN_FONT_SIZE_SP, SettingsStore.MAX_FONT_SIZE_SP)
+                        onFontSizeChange(newSize)
+                    }) { Text("−", fontSize = 20.sp, color = colors.accent) }
+
+                    Text(
+                        text = "${fontSizeSp.toInt()}sp",
+                        color = colors.textPrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    IconButton(onClick = {
+                        val newSize = (fontSizeSp + SettingsStore.FONT_SIZE_STEP_SP)
+                            .coerceIn(SettingsStore.MIN_FONT_SIZE_SP, SettingsStore.MAX_FONT_SIZE_SP)
+                        onFontSizeChange(newSize)
+                    }) { Text("+", fontSize = 20.sp, color = colors.accent) }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isDarkTheme) "Tema Gelap" else "Tema Terang",
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(checked = !isDarkTheme, onCheckedChange = { onToggleTheme(!it) })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Selesai") }
         }
     )
 }

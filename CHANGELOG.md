@@ -1,5 +1,20 @@
 # Changelog — PromptNotepad
 
+## [1.5.0] — Batch 2: Pengaturan Tampilan (font size + tema terang/gelap)
+### Ditambahkan
+- **Ukuran font editor bisa diatur** (stepper +/− di dialog "Pengaturan Tampilan", rentang 11sp–26sp, langkah 1sp) — dipersist lewat `SettingsStore` (SharedPreferences), diterapkan langsung (live) tanpa restart app
+- **Toggle tema terang/gelap** — default TETAP gelap sesuai kesepakatan; tema terang jadi opsi eksplisit, juga dipersist
+- `SettingsStore.kt` (baru): wrapper SharedPreferences kecil khusus 2 nilai pengaturan tampilan, tidak menambah dependensi/DB baru
+- Item menu ⋮ baru: "Pengaturan Tampilan"
+### Diubah (arsitektur internal, bukan perilaku fitur lama)
+- Seluruh warna UI yang sebelumnya konstanta statis (`PureBlack`, `DeepGray`, dst.) kini dibaca dinamis lewat `AppColors`/`LocalAppColors` (CompositionLocal) agar bisa berubah saat tema di-toggle — nilai default (tema gelap) identik persis dengan konstanta lama, jadi tampilan default TIDAK berubah
+- Ukuran & warna font editor (`TextEditor`) serta warna highlight todo.txt (prioritas/konteks) kini mengikuti tema & pengaturan aktif lewat `editorTextStyle()`/`LocalEditorFontSize`
+- Penamaan file APK build (`app/build.gradle`) dan nama artifact GitHub Actions (`build.yml`) dibuat **dinamis** mengikuti versionName + commit SHA saat itu (bukan nama statis yang sama di setiap build) — memudahkan menelusuri balik APK/artifact ke commit persisnya
+### Diperbaiki
+- ⚠️ **Temuan audit (bukan bagian Batch 2, ditemukan saat verifikasi):** `.gitignore` ternyata TIDAK PERNAH memuat `release.keystore` di riwayat repo (meski Kotak Perintah B setup awal seharusnya menambahkannya) — celah ini berarti keystore asli berisiko ikut ter-commit jika ada workflow lokal yang menyentuhnya di luar CI. Ditambahkan sekarang.
+### Catatan
+- Batch 3 (Info Berkas: tambah jumlah kata & karakter) menyusul di rilis berikutnya
+
 ## [1.4.3] — Hotfix build gagal (v1.4.2)
 ### Diperbaiki
 - ⚠️ **Build CI gagal:** `BottomFileBar.kt` memakai `return@onClick` yang tidak valid (lambda `onClick = { ... }` adalah argumen bernama, bukan trailing lambda, jadi tidak dapat label implisit). Diganti ke struktur `if (item.available) { ... }` — guard yang dimaksud (mencegah item menu terkunci menjalankan aksi) tetap sama persis.

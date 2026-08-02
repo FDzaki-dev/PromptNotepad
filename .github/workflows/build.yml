@@ -34,10 +34,15 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_COMMIT_SHA: ${{ github.sha }}
         run: ./gradlew assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PromptNotepad-release-apk
+          # Nama artifact dinamis: run number + short commit SHA, bukan nama
+          # statis yang sama di setiap build — supaya setiap build gampang
+          # ditelusuri balik ke commit persisnya lewat nama file, bukan lewat
+          # id internal GitHub yang tidak jelas artinya.
+          name: PromptNotepad-run${{ github.run_number }}-${{ github.sha }}
           path: app/build/outputs/apk/release/*.apk

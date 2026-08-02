@@ -24,10 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.promptnotepad.app.ui.theme.DeepGray
-import com.promptnotepad.app.ui.theme.LockedText
-import com.promptnotepad.app.ui.theme.PremiumAccent
-import com.promptnotepad.app.ui.theme.TextPrimary
+import com.promptnotepad.app.ui.theme.LocalAppColors
 
 /**
  * Item menu di dalam overflow ("⋮"). Item dengan [available] = false ditampilkan
@@ -55,21 +52,22 @@ fun BottomFileBar(
     menuItems: List<OverflowMenuItem>
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val colors = LocalAppColors.current
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DeepGray)
+            .background(colors.surface)
             .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBrowseFiles) {
-            Icon(Icons.Filled.FolderOpen, contentDescription = "Buka Berkas", tint = PremiumAccent)
+            Icon(Icons.Filled.FolderOpen, contentDescription = "Buka Berkas", tint = colors.accent)
         }
 
         Text(
             text = activeFileName ?: "Tidak ada berkas terbuka",
-            color = TextPrimary,
+            color = colors.textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -80,12 +78,12 @@ fun BottomFileBar(
         )
 
         IconButton(onClick = onNewFile) {
-            Icon(Icons.Filled.Add, contentDescription = "Berkas Baru", tint = PremiumAccent)
+            Icon(Icons.Filled.Add, contentDescription = "Berkas Baru", tint = colors.accent)
         }
 
         androidx.compose.foundation.layout.Box {
             IconButton(onClick = { menuExpanded = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "Menu Lainnya", tint = PremiumAccent)
+                Icon(Icons.Filled.MoreVert, contentDescription = "Menu Lainnya", tint = colors.accent)
             }
             DropdownMenu(
                 expanded = menuExpanded,
@@ -96,7 +94,7 @@ fun BottomFileBar(
                         text = {
                             Text(
                                 text = if (item.available) item.label else "${item.label} (Segera Hadir)",
-                                color = if (item.available) TextPrimary else LockedText
+                                color = if (item.available) colors.textPrimary else colors.locked
                             )
                         },
                         enabled = item.available,

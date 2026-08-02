@@ -17,11 +17,39 @@ android {
         applicationId "com.promptnotepad.app"
         minSdk 26
         targetSdk 34
-        versionCode 9
-        versionName "1.4.3"
+        versionCode 10
+        versionName "1.5.0"
 
         vectorDrawables {
             useSupportLibrary true
+        }
+    }
+
+    // Nama file APK output dibuat dinamis (versionName + short commit SHA + tipe
+    // build), BUKAN nama statis ("app-release.apk") yang sama di setiap build.
+    // Sumber SHA: env ANDROID_COMMIT_SHA (diisi CI lewat github.sha, lihat
+    // build.yml) dengan fallback ke `git rev-parse --short HEAD` untuk build
+    // lokal/Termux, dan "nogit" sebagai jaring pengaman terakhir agar build
+    // tidak pernah gagal hanya karena info commit tidak tersedia.
+    applicationVariants.all { variant ->
+        def shaEnv = System.getenv("ANDROID_COMMIT_SHA")
+        def shortSha = shaEnv?.take(7)
+        if (!shortSha) {
+            try {
+                def stdout = new ByteArrayOutputStream()
+                exec {
+                    commandLine 'git', 'rev-parse', '--short=7', 'HEAD'
+                    standardOutput = stdout
+                    ignoreExitValue = true
+                }
+                def result = stdout.toString().trim()
+                shortSha = result.isEmpty() ? "nogit" : result
+            } catch (ignored) {
+                shortSha = "nogit"
+            }
+        }
+        variant.outputs.all { output ->
+            outputFileName = "PromptNotepad-${variant.versionName}-${shortSha}-${variant.buildType.name}.apk"
         }
     }
 

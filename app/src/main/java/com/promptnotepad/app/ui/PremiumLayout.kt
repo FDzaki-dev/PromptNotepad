@@ -12,9 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.promptnotepad.app.state.TabManager
-import com.promptnotepad.app.ui.theme.DeepGray
-import com.promptnotepad.app.ui.theme.PremiumBorder
-import com.promptnotepad.app.ui.theme.PureBlack
+import com.promptnotepad.app.ui.theme.LocalAppColors
 
 /**
  * Kerangka visual: TabBar di atas (dipisahkan garis tipis dari area editor),
@@ -28,15 +26,16 @@ fun PremiumLayout(
     shortcutBar: @Composable () -> Unit = {},
     editorContent: @Composable () -> Unit
 ) {
+    val colors = LocalAppColors.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(PureBlack)
+            .background(colors.background)
     ) {
-        Box(modifier = Modifier.background(DeepGray)) {
+        Box(modifier = Modifier.background(colors.surface)) {
             TabBar(tabManager = tabManager, onCloseTab = onCloseTab)
         }
-        HorizontalDivider(thickness = 1.dp, color = PremiumBorder)
+        HorizontalDivider(thickness = 1.dp, color = colors.border)
 
         Box(
             modifier = Modifier
@@ -46,9 +45,9 @@ fun PremiumLayout(
             editorContent()
         }
 
-        HorizontalDivider(thickness = 1.dp, color = PremiumBorder)
+        HorizontalDivider(thickness = 1.dp, color = colors.border)
         bottomFileBar()
-        HorizontalDivider(thickness = 1.dp, color = PremiumBorder)
+        HorizontalDivider(thickness = 1.dp, color = colors.border)
         shortcutBar()
     }
 }

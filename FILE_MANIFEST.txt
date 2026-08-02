@@ -23,6 +23,7 @@ app/src/main/java/com/promptnotepad/app/ui/theme/Theme.kt
 app/src/main/java/com/promptnotepad/app/util/ExternalFileUtils.kt
 app/src/main/java/com/promptnotepad/app/util/FileUtils.kt
 app/src/main/java/com/promptnotepad/app/util/RegexUtils.kt
+app/src/main/java/com/promptnotepad/app/util/SettingsStore.kt
 app/src/main/java/com/promptnotepad/app/util/TodoParser.kt
 app/src/main/res/drawable/ic_launcher_foreground.xml
 app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml

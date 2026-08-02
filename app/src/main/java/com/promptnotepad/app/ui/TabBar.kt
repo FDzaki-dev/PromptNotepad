@@ -22,10 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.promptnotepad.app.state.TabManager
-import com.promptnotepad.app.ui.theme.DeepGray
-import com.promptnotepad.app.ui.theme.PremiumAccent
-import com.promptnotepad.app.ui.theme.TextPrimary
-import com.promptnotepad.app.ui.theme.TextSecondary
+import com.promptnotepad.app.ui.theme.LocalAppColors
 
 @Composable
 fun TabBar(
@@ -34,10 +31,12 @@ fun TabBar(
 ) {
     if (tabManager.openTabs.isEmpty()) return
 
+    val colors = LocalAppColors.current
+
     ScrollableTabRow(
         selectedTabIndex = tabManager.activeTabIndex.value,
-        containerColor = DeepGray,
-        contentColor = TextPrimary,
+        containerColor = colors.surface,
+        contentColor = colors.textPrimary,
         edgePadding = 0.dp
     ) {
         tabManager.openTabs.forEachIndexed { index, tab ->
@@ -53,13 +52,13 @@ fun TabBar(
                                 modifier = Modifier
                                     .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(PremiumAccent)
+                                    .background(colors.accent)
                             )
                             Spacer(Modifier.width(4.dp))
                         }
                         Text(
                             text = tab.title,
-                            color = if (isActive) TextPrimary else TextSecondary,
+                            color = if (isActive) colors.textPrimary else colors.textSecondary,
                             fontFamily = MaterialTheme.typography.bodyMedium.fontFamily,
                             fontSize = 13.sp
                         )
@@ -71,7 +70,7 @@ fun TabBar(
                             Icon(
                                 imageVector = Icons.Filled.Close,
                                 contentDescription = "Tutup tab ${tab.title}",
-                                tint = if (isActive) PremiumAccent else TextSecondary
+                                tint = if (isActive) colors.accent else colors.textSecondary
                             )
                         }
                     }

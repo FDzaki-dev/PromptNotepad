@@ -12,13 +12,23 @@ private val priorityRegex = Regex("\\([A-Z]\\)")
 private val contextRegex = Regex("@\\w+")
 private val projectRegex = Regex("\\+\\w+")
 
-fun highlightTodoSyntax(text: String): AnnotatedString {
+/**
+ * [priorityColor]/[contextColor] default ke warna tema gelap asli untuk
+ * kompatibilitas mundur — TextEditor.kt (satu-satunya pemanggil saat ini)
+ * meneruskan warna dari tema aktif (Batch 2) agar kontras tetap terjaga
+ * di tema terang.
+ */
+fun highlightTodoSyntax(
+    text: String,
+    priorityColor: Color = PremiumAccent,
+    contextColor: Color = CodeGreen
+): AnnotatedString {
     return buildAnnotatedString {
         append(text)
 
         priorityRegex.findAll(text).forEach { match ->
             addStyle(
-                style = SpanStyle(color = PremiumAccent, fontWeight = FontWeight.Bold),
+                style = SpanStyle(color = priorityColor, fontWeight = FontWeight.Bold),
                 start = match.range.first,
                 end = match.range.last + 1
             )
@@ -26,7 +36,7 @@ fun highlightTodoSyntax(text: String): AnnotatedString {
 
         contextRegex.findAll(text).forEach { match ->
             addStyle(
-                style = SpanStyle(color = CodeGreen),
+                style = SpanStyle(color = contextColor),
                 start = match.range.first,
                 end = match.range.last + 1
             )

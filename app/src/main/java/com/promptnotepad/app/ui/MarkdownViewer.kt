@@ -12,10 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.promptnotepad.app.ui.theme.PremiumAccent
-import com.promptnotepad.app.ui.theme.PureBlack
-import com.promptnotepad.app.ui.theme.TextPrimary
-import com.promptnotepad.app.ui.theme.TextSecondary
+import com.promptnotepad.app.ui.theme.LocalAppColors
 
 private sealed class MdBlock {
     data class Heading(val text: String, val level: Int) : MdBlock()
@@ -46,17 +43,18 @@ private fun parseMarkdown(content: String): List<MdBlock> {
 @Composable
 fun MarkdownViewer(content: String, modifier: Modifier = Modifier) {
     val blocks = parseMarkdown(content)
+    val colors = LocalAppColors.current
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(PureBlack)
+            .background(colors.background)
             .padding(16.dp)
     ) {
         items(blocks) { block ->
             when (block) {
                 is MdBlock.Heading -> Text(
                     text = block.text,
-                    color = PremiumAccent,
+                    color = colors.accent,
                     fontWeight = FontWeight.Bold,
                     fontSize = when (block.level) {
                         1 -> 22.sp
@@ -67,19 +65,19 @@ fun MarkdownViewer(content: String, modifier: Modifier = Modifier) {
                 )
                 is MdBlock.Checkbox -> Text(
                     text = (if (block.checked) "☑ " else "☐ ") + block.text,
-                    color = if (block.checked) TextSecondary else TextPrimary,
+                    color = if (block.checked) colors.textSecondary else colors.textPrimary,
                     fontSize = 15.sp,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )
                 is MdBlock.Bullet -> Text(
                     text = "•  " + block.text,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 15.sp,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )
                 is MdBlock.Paragraph -> Text(
                     text = block.text,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 15.sp,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )

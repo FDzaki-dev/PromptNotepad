@@ -4,11 +4,10 @@
 > Riwayat insiden bersifat kronologis dan TIDAK BOLEH dihapus — hanya ditambah.
 
 ## Status Terakhir
-- **Versi:** `versionCode 9` / `versionName "1.4.3"`
-- **Batch terakhir selesai:** Hotfix build gagal dari v1.4.2 (lihat insiden #12) — Batch 1 (2 bug audit) kini benar-benar selesai & lolos compile
+- **Versi:** `versionCode 10` / `versionName "1.5.0"`
+- **Batch terakhir selesai:** Batch 2 — Pengaturan Tampilan (font size + toggle tema terang/gelap), lihat insiden #13
 - **Batch berikutnya (rencana disepakati user — kerjakan berurutan, jangan sekaligus):**
-  1. **Batch 2 — Pengaturan Tampilan:** ukuran font bisa diatur + toggle tema terang/gelap (default TETAP gelap, terang jadi opsi)
-  2. **Batch 3 — Info Berkas lengkap:** tambah jumlah kata & karakter (saat ini baru ukuran file + tanggal)
+  1. **Batch 3 — Info Berkas lengkap:** tambah jumlah kata & karakter (saat ini baru ukuran file + tanggal)
 
 ## Riwayat Insiden Kronologis (jangan dihapus)
 
@@ -58,6 +57,16 @@
 
 12. **[Build gagal — v1.4.2, hotfix jadi v1.4.3]** ⚠️ CI (`compileReleaseKotlin`) gagal setelah push v1.4.2. Penyebab: perbaikan guard menu terkunci di `BottomFileBar.kt` (insiden #11) memakai `return@onClick` — label ini TIDAK valid karena lambda `onClick = { ... }` di situ adalah argumen bernama (named argument), bukan trailing lambda, sehingga tidak mendapat label implisit dari nama parameter. Kotlin compiler: `Unresolved reference: @onClick`. Diperbaiki dengan mengganti ke struktur `if (item.available) { ... }` tanpa non-local return — perilaku/guard yang dimaksud tetap sama persis, hanya cara penulisannya yang diperbaiki. User memberi tahu lewat log CI (`logs_83322824362.zip`) yang diunggah setelah push v1.4.2 gagal.
 
+13. **[Batch 2 — v1.5.0]** Ukuran font editor bisa diatur + toggle tema terang/gelap (default tetap gelap). Implementasi:
+    - **Perubahan arsitektur warna (perlu, bukan opsional):** seluruh 7 file UI sebelumnya mengimpor konstanta warna statis (`PureBlack`, `DeepGray`, `TextPrimary`, dst.) langsung dari `Color.kt` — cukup untuk tema gelap tunggal, tapi tidak bisa berubah saat tema di-toggle saat runtime. Diganti ke `data class AppColors` + `val LocalAppColors = staticCompositionLocalOf { darkAppColors }` (CompositionLocal) di `Theme.kt`; `PromptNotepadTheme(darkTheme, editorFontSize, content)` menyediakan `AppColors` yang sesuai (dark/light) lewat `CompositionLocalProvider`. **Nilai default (tema gelap) diverifikasi identik persis** dengan konstanta lama — jadi tampilan default TIDAK berubah, hanya sumbernya jadi dinamis. Konstanta lama di `Color.kt` TIDAK dihapus (dipertahankan sebagai nilai dasar `darkAppColors` + agar tidak ada referensi lama yang patah).
+    - **Palet tema terang baru** (`LightBackground`, `LightSurface`, dst. di `Color.kt`) — aksen emas & hijau terminal didalamkan (`LightAccent`, `LightCodeGreen`) khusus tema terang agar kontras cukup di atas latar putih (versi gelap terlalu pucat jika dipakai apa adanya di latar terang).
+    - `TextEditor.kt`: style editor kini dibangun dinamis lewat `editorTextStyle(fontSize, color)` (rasio lineHeight/fontSize 22/15 dipertahankan persis), warna highlight todo.txt (prioritas `@`, konteks) diteruskan dari tema aktif ke `highlightTodoSyntax()` — parameter baru dengan default value sama seperti sebelumnya (`PremiumAccent`/`CodeGreen`) untuk kompatibilitas mundur. Warna proyek (`+tag`, biru `0xFF5CA8FF`) SENGAJA belum dibuat theme-aware (keterbatasan diterima, kontras masih cukup di kedua tema).
+    - `SettingsStore.kt` (baru, `util/`): wrapper `SharedPreferences` (bukan DataStore/DB — konsisten dengan arsitektur proyek yang menghindari dependensi penyimpanan baru untuk data non-konten kecil). Rentang font 11sp–26sp, langkah 1sp, default 15sp (sama seperti nilai tetap lama). Default tema tetap gelap (`isDarkTheme() = true` kalau belum pernah diset user).
+    - `MainActivity.kt`: state font/tema dibaca dari `SettingsStore` di `onCreate` (sebelum `PromptNotepadTheme` diterapkan), diteruskan turun ke `PromptNotepadApp`/`EditorSection`. Dialog baru `DisplaySettingsDialog` (stepper +/− font, `Switch` tema) dipicu dari item menu ⋮ baru "Pengaturan Tampilan". Perubahan diterapkan langsung (live preview) sekaligus dipersist per-perubahan (bukan hanya saat dialog ditutup).
+    - **Circuit breaker file:** 17 file lama tidak ada yang hilang, +1 file baru (`SettingsStore.kt`) = 18 total — bukan regresi.
+    - **Di luar Batch 2, dikerjakan atas permintaan eksplisit user (bukan scope creep):** penamaan file APK output (`app/build.gradle`, blok `applicationVariants.all`) dan nama artifact GitHub Actions (`build.yml`) dibuat dinamis mengikuti `versionName` + short commit SHA (env `ANDROID_COMMIT_SHA` diisi CI dari `github.sha`, fallback `git rev-parse --short HEAD` untuk build lokal/Termux, `"nogit"` sebagai jaring pengaman terakhir) — sebelumnya nama file/artifact statis sehingga sulit ditelusuri balik ke commit persisnya.
+    - **Keterbatasan yang didokumentasikan (bukan bug tersembunyi):** status bar sistem Android (di luar Compose, diatur `android:theme` di `AndroidManifest.xml`) tidak ikut berubah warna saat tema di-toggle — `Theme.Material.NoActionBar` bawaan dipertahankan apa adanya (mengubahnya butuh setup edge-to-edge/status-bar-color terpisah, di luar scope Batch 2 yang disepakati hanya "font size + toggle tema"). Tidak ada toolchain Gradle/Android SDK di lingkungan pembuatan ini untuk build asli — verifikasi dilakukan lewat pengecekan keseimbangan kurung di seluruh 18 file `.kt` (otomatis, semua seimbang), audit manual tiap import yang ditambah/dihapus benar-benar dipakai/tidak dipakai lagi, dan penelusuran manual bahwa tidak ada referensi ke konstanta warna lama yang tertinggal di file yang sudah dimigrasi ke `LocalAppColors`.
+
 ## Keputusan Arsitektur Utama
 - **Penyimpanan:** `java.io.File` langsung ke `filesDir/notes` (internal storage app-specific, tidak perlu permission). **Belum** migrasi ke Storage Access Framework/`Uri` — itu Batch 3, butuh konfirmasi eksplisit dulu karena mengubah `FileUtils`, `TabItem`, `TabManager` hampir menyeluruh.
 - **Concurrency:** `Dispatchers.IO.limitedParallelism(1)` khusus untuk write (urutan auto-save terjamin, no race). `Dispatchers.Default.limitedParallelism(1)` khusus untuk regex (isolasi agar pola "meledak" tidak menyita thread pool lain).
@@ -67,18 +76,22 @@
 ## Struktur Modul Singkat
 ```
 app/src/main/java/com/promptnotepad/app/
-├── MainActivity.kt        # Entry point, wiring seluruh state & UI, handle Intent VIEW/EDIT
+├── MainActivity.kt        # Entry point, wiring seluruh state & UI, handle Intent VIEW/EDIT,
+│                           # baca/tulis SettingsStore, dialog Pengaturan Tampilan
 ├── model/                 # TabItem (+ isDirty, sourceUri), TodoTask
 ├── state/                 # TabManager (tab list, active index, eviction)
 ├── ui/                    # TextEditor, TabBar, ShortcutBar, PremiumLayout,
-│                           # BottomFileBar (baru, menu ⋮), MarkdownViewer,
-│                           # TodoHighlighter, theme/
+│                           # BottomFileBar (menu ⋮), MarkdownViewer,
+│                           # TodoHighlighter, theme/ (AppColors, LocalAppColors dinamis)
 └── util/                  # FileUtils (I/O async), RegexUtils (async+timeout),
-                            # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser
+                            # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser,
+                            # SettingsStore (font size + mode tema, SharedPreferences)
 ```
 
 ## Belum Dikerjakan (menunggu instruksi)
-- Batch 4: Undo/Redo stack, Hardware keyboard shortcuts (`onKeyEvent`)
+- Batch 3: Info Berkas lengkap (tambah jumlah kata & karakter)
+- Hardware keyboard shortcuts (`onKeyEvent`) — item lama dari evaluasi 14 item awal, belum pernah dijadwalkan ulang sejak scope proyek dibuka kembali di v1.4.0
+- Warna highlight todo.txt untuk tag proyek (`+tag`, biru `0xFF5CA8FF`) belum theme-aware seperti prioritas/konteks (lihat insiden #13) — kontras saat ini masih diterima di kedua tema, belum ada laporan masalah
 
 ## Keputusan Ditolak (dengan alasan, jangan diusulkan ulang tanpa alasan baru)
 - **Auto-save timer-debounce (3 detik):** ditolak. Auto-save instan async yang sudah ada lebih aman (jendela data-loss lebih kecil) dan tidak membekukan UI — timer hanya akan mengurangi frekuensi tulis dengan trade-off resiko kehilangan data lebih besar.
