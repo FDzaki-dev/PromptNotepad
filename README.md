@@ -2,7 +2,7 @@
 
 Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa database eksternal — file mentah `.txt`/`.md` disimpan langsung di penyimpanan internal aplikasi.
 
-**Versi saat ini:** `1.6.0` (`versionCode 11`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
+**Versi saat ini:** `1.6.1` (`versionCode 12`). Lihat [`CHANGELOG.md`](CHANGELOG.md) untuk riwayat rilis dan [`PROJECT_STATE.md`](PROJECT_STATE.md) untuk konteks arsitektur & riwayat insiden.
 
 > **Catatan arah proyek:** sejak v1.6.0, tujuan utama adalah membuat UI/UX/layout & cara tangani berkas sedekat mungkin dengan app pembanding **TxtPad+** (termasuk warna/spacing). Fitur non-TxtPad+ (multi-tab, Markdown viewer, highlight Todo.txt, Cari & Ganti Regex) tetap ada tapi bukan prioritas.
 
@@ -67,6 +67,11 @@ Aplikasi catatan native Android (Kotlin + Jetpack Compose), 100% offline, tanpa 
 - Tombol (+) untuk membuat catatan baru dari layar utama
 - Tombol back sistem & tombol panah di editor kembali ke Daftar File (bukan langsung keluar app)
 
+### Buka & Baca ZIP (sejak v1.6.1)
+- Berkas `.zip` bisa dibuka lewat **"Buka Dengan"** (sama seperti `.txt`/`.md`) — menampilkan daftar isi `.txt`/`.md` di dalamnya, ketuk untuk membuka sebagai tab biasa
+- Deteksi encoding otomatis (BOM UTF-8/UTF-16, lalu UTF-8 ketat, fallback Windows-1252) — mencegah simbol acak/mojibake pada berkas yang encoding aslinya bukan UTF-8
+- Bukan pengelola arsip umum — hanya untuk membaca berkas teks di dalam ZIP, tanpa ekstrak-semua/hapus/kompresi
+
 ## Build lokal
 ```
 ./gradlew assembleRelease
@@ -82,10 +87,12 @@ app/src/main/java/com/promptnotepad/app/
 ├── state/                 # TabManager (tab list, active index, eviction)
 ├── ui/                    # FileListScreen (layar utama, ala TxtPad+), TextEditor, TabBar,
 │                           # ShortcutBar, PremiumLayout, BottomFileBar (menu ⋮), MarkdownViewer,
-│                           # TodoHighlighter, theme/ (AppColors, LocalAppColors dinamis)
+│                           # TodoHighlighter, ZipContentsScreen (daftar isi ZIP),
+│                           # theme/ (AppColors, LocalAppColors dinamis)
 └── util/                  # FileUtils (I/O async + readSnippet), RegexUtils (async+timeout),
                             # ExternalFileUtils (impor & sinkron "Buka Dengan"), TodoParser,
-                            # SettingsStore (font size + mode tema), PinStore (berkas di-pin)
+                            # SettingsStore (font size + mode tema), PinStore (berkas di-pin),
+                            # ZipUtils (baca isi ZIP + deteksi encoding, anti-mojibake)
 ```
 
 ## Roadmap (rencana — dikerjakan berurutan per batch)

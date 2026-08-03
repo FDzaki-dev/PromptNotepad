@@ -56,6 +56,7 @@ import com.promptnotepad.app.ui.OverflowMenuItem
 import com.promptnotepad.app.ui.PremiumLayout
 import com.promptnotepad.app.ui.ShortcutBar
 import com.promptnotepad.app.ui.TextEditor
+import com.promptnotepad.app.ui.ZipContentsScreen
 import com.promptnotepad.app.ui.insertAtCursor
 import com.promptnotepad.app.ui.theme.LocalAppColors
 import com.promptnotepad.app.ui.theme.PromptNotepadTheme
@@ -65,6 +66,7 @@ import com.promptnotepad.app.util.PinStore
 import com.promptnotepad.app.util.RegexOutcome
 import com.promptnotepad.app.util.RegexUtils
 import com.promptnotepad.app.util.SettingsStore
+import com.promptnotepad.app.util.ZipUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -167,9 +169,18 @@ private fun PromptNotepadApp(
     var showFileList by rememberSaveable { mutableStateOf(true) }
     var fileListRefreshTrigger by remember { mutableStateOf(0) }
 
+    // Buka ZIP lewat "Buka Dengan": beda dari impor teks biasa, ZIP disalin ke
+    // cache lokal dulu (java.util.zip butuh File biasa, tidak bisa baca acak
+    // langsung dari Uri content://), lalu ditampilkan sebagai daftar isi
+    // (ZipContentsScreen) untuk dipilih entri teksnya. Tidak persisten lintas
+    // proses (cukup untuk satu sesi buka-pilih-impor).
+    var pendingZipFile by remember { mutableStateOf<File?>(null) }
+    var showZipContents by remember { mutableStateOf(false) }
+
     fun returnToFileList() {
         fileListRefreshTrigger++
         showFileList = true
+        showZipContents = false
     }
 
     // "Buka Dengan": berkas eksternal dari Intent VIEW/EDIT (file manager/app lain)
@@ -187,12 +198,41 @@ private fun PromptNotepadApp(
             // Tidak semua provider/Intent memberi izin permanen — akses sesi ini
             // (dari flag Intent VIEW/EDIT itu sendiri) tetap cukup untuk edit+save.
         }
-        val result = ExternalFileUtils.importFromUri(context, uri, notesDir)
-        result.onSuccess { localFile ->
-            tabManager.openFileInTab(localFile, sourceUri = uri)
-            showFileList = false
-        }.onFailure {
-            snackbarHostState.showSnackbar(it.message ?: "Gagal membuka berkas eksternal.")
+
+        val mimeType = context.contentResolver.getType(uri).orEmpty()
+        val nameLooksLikeZip = uri.lastPathSegment
+            ?.substringAfterLast('/')
+            ?.endsWith(".zip", ignoreCase = true) == true
+        val isZip = mimeType.contains("zip", ignoreCase = true) || nameLooksLikeZip
+
+        if (isZip) {
+            val zipCacheDir = File(context.cacheDir, "zip-import").also { it.mkdirs() }
+            // Nama cache dibuat dari hash Uri sumber (BUKAN nama tetap "opened.zip")
+            // supaya ZipUtils.importEntryToNotes (yang menghitung nama lokal dari
+            // "${zipFile.name}:$entryName") tetap membedakan entri bernama sama dari
+            // ZIP ASAL BERBEDA. Pola sama seperti ExternalFileUtils.localNameFor.
+            val uriHash = uri.toString().hashCode().toUInt().toString(16).take(8)
+            val cachedZip = File(zipCacheDir, "zip-$uriHash.zip")
+            val copyResult = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    cachedZip.outputStream().use { output -> input.copyTo(output) }
+                } ?: throw java.io.IOException("Tidak bisa membaca berkas ZIP (izin akses ditolak atau berkas terhapus).")
+            }
+            copyResult.onSuccess {
+                pendingZipFile = cachedZip
+                showZipContents = true
+                showFileList = false
+            }.onFailure {
+                snackbarHostState.showSnackbar(it.message ?: "Gagal membuka berkas ZIP.")
+            }
+        } else {
+            val result = ExternalFileUtils.importFromUri(context, uri, notesDir)
+            result.onSuccess { localFile ->
+                tabManager.openFileInTab(localFile, sourceUri = uri)
+                showFileList = false
+            }.onFailure {
+                snackbarHostState.showSnackbar(it.message ?: "Gagal membuka berkas eksternal.")
+            }
         }
         intentState.value = null
     }
@@ -245,6 +285,30 @@ private fun PromptNotepadApp(
                         snackbarHostState.showSnackbar(errorMessage)
                     }
                 }
+            }
+        )
+        return
+    }
+
+    val zipFileForContents = pendingZipFile
+    if (showZipContents && zipFileForContents != null) {
+        ZipContentsScreen(
+            zipFile = zipFileForContents,
+            onOpenEntry = { entryName ->
+                coroutineScope.launch {
+                    val result = ZipUtils.importEntryToNotes(zipFileForContents, entryName, notesDir)
+                    result.onSuccess { localFile ->
+                        tabManager.openFileInTab(localFile)
+                        showZipContents = false
+                        showFileList = false
+                    }.onFailure {
+                        snackbarHostState.showSnackbar(it.message ?: errorMessage)
+                    }
+                }
+            },
+            onDismiss = {
+                showZipContents = false
+                showFileList = true
             }
         )
         return

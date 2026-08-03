@@ -45,6 +45,26 @@
                 <data android:pathPattern=".*\\.txt" />
                 <data android:pathPattern=".*\\..*\\.txt" />
                 <data android:pathPattern=".*\\..*\\..*\\.txt" />
+                <data android:pathPattern=".*\\.zip" />
+                <data android:pathPattern=".*\\..*\\.zip" />
+                <data android:pathPattern=".*\\..*\\..*\\.zip" />
+            </intent-filter>
+
+            <!-- ZIP: beda dari .txt/.md, banyak file manager mengenali MIME zip
+                 dengan benar & konsisten (application/zip, application/x-zip-compressed),
+                 jadi ditambah filter MIME eksplisit selain pola nama berkas di atas
+                 (menaikkan cakupan, bukan pengganti). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/x-zip-compressed" />
             </intent-filter>
         </activity>
     </application>

@@ -1,5 +1,24 @@
 # Changelog — PromptNotepad
 
+## [1.6.1] — Buka & Baca Isi ZIP (permintaan eksplisit user, di luar pivot Batch B/C)
+### Bugfix pra-rilis (ditemukan sebelum sempat di-push ke remote)
+- **Tabrakan nama file lokal antar ZIP asal berbeda:** cache ZIP yang dibuka lewat "Buka Dengan" sebelumnya selalu disalin dengan nama tetap `opened.zip`, membuat entri bernama sama dari dua ZIP yang berbeda ter-mapping ke satu file lokal yang sama (isi bisa saling menimpa). Diperbaiki: nama cache sekarang dari hash Uri sumber (`zip-<hash>.zip`), konsisten dengan pola `ExternalFileUtils.localNameFor`. Lihat detail di `PROJECT_STATE.md` insiden #17. `versionCode`/`versionName` tidak dinaikkan karena versi ini belum pernah benar-benar dirilis/di-push.
+### Konteks
+- Permintaan eksplisit user: bisa membuka berkas `.zip` lewat "Buka Dengan" (sama seperti alur `.txt`/`.md` yang sudah ada), melihat daftar isinya, dan membaca berkas `.txt`/`.md` di dalamnya **tanpa simbol acak (mojibake)**. Bukan bagian dari roadmap Batch B (Tags)/Batch C (visual) yang sedang dijeda — dikerjakan terpisah karena diminta langsung.
+### Ditambahkan
+- `util/ZipUtils.kt` (baru): daftar entri `.txt`/`.md` di dalam ZIP (`listTextEntries`), baca isi satu entri (`readEntryText`), dan impor satu entri ke penyimpanan lokal agar bisa dibuka sebagai tab biasa (`importEntryToNotes`). Batas ukuran 2MB per entri, konsisten dengan `FileUtils.readFile`.
+- `ui/ZipContentsScreen.kt` (baru): layar daftar isi ZIP (nama + ukuran entri), ketuk untuk membuka. Bukan pengelola arsip umum — tidak ada ekstrak-semua/hapus/kompresi.
+- `AndroidManifest.xml`: intent-filter VIEW/EDIT untuk `.zip` — pola nama berkas (konsisten dengan pola `.txt`/`.md` yang sudah ada) DAN filter MIME eksplisit (`application/zip`, `application/x-zip-compressed`) untuk cakupan lebih luas dari file manager yang mengenali MIME zip dengan benar.
+- `MainActivity.kt`: deteksi ZIP saat Intent VIEW/EDIT masuk (dari MIME atau nama berkas) — jika ZIP, disalin ke cache lokal lalu ditampilkan lewat `ZipContentsScreen`; jika bukan, jalur impor teks lama (`ExternalFileUtils.importFromUri`) berjalan persis seperti sebelumnya, tidak diubah.
+### Perbaikan bug/akar masalah "simbol acak"
+- **Akar masalah:** `FileUtils.readFile` (dipakai semua berkas lokal biasa) memaksa dekode UTF-8 untuk semua berkas — berkas dari sumber lain yang sebenarnya ANSI/Windows-1252 akan tampil sebagai simbol acak. Untuk entri ZIP (`ZipUtils.readEntryText`), **tidak** memaksa UTF-8: deteksi BOM UTF-8/UTF-16 dulu, lalu coba UTF-8 ketat, baru fallback ke Windows-1252 (jaring pengaman terakhir yang valid untuk byte apa pun).
+- **Belum disentuh (di luar scope permintaan ini):** `FileUtils.readFile` untuk berkas `.txt`/`.md` lokal biasa (bukan dari ZIP) TETAP hard-code UTF-8 seperti sebelumnya — mengubahnya berarti menyentuh jalur baca/tulis inti yang dipakai semua fitur (undo/redo, auto-save, dst.), berisiko regresi lebih luas daripada manfaatnya untuk permintaan spesifik ini. Kalau berkas `.txt` biasa (bukan dari ZIP) juga bermasalah, perlu instruksi terpisah.
+### Asumsi teknis (dicatat sesuai AI Assumption Log)
+- Tidak menambah dependency baru — `java.util.zip.ZipFile` sudah tersedia di JDK/Android standar.
+- Konten ZIP disalin ke `context.cacheDir` (bukan `filesDir`), karena sifatnya sementara (sumber baca, bukan data pengguna yang perlu bertahan lama).
+### Verifikasi
+- Tidak ada toolchain Gradle/Android SDK di lingkungan pembuatan ini untuk build asli — verifikasi dilakukan lewat pengecekan keseimbangan kurung (otomatis, seimbang di 3 file yang disentuh) dan penelusuran manual bahwa referensi import baru (`ZipUtils`, `ZipContentsScreen`) benar dan dipakai.
+
 ## [1.6.0] — PIVOT ARAH PROYEK: Batch A, redesain ala TxtPad+ (Daftar File + Pin)
 ### Konteks
 - User menghentikan penambahan fitur baru. Tujuan sekarang: UI/UX/layout & cara tangani berkas dibuat SEDEKAT MUNGKIN meniru app pembanding TxtPad+ (termasuk warna/spacing). Fitur lama yang tidak ada di TxtPad+ (multi-tab, Markdown viewer, highlight Todo.txt, Cari & Ganti Regex) TETAP ADA, hanya bukan prioritas/tidak disorot di alur utama.
